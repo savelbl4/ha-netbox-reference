@@ -21,14 +21,6 @@
     system: true
     create_home: false
 
-- name: Create base dir
-  ansible.builtin.file:
-    path: "{{ netbox_base_dir }}"
-    state: directory
-    owner: "{{ netbox_user }}"
-    group: "{{ netbox_group }}"
-    mode: "0755"
-
 # проверяем подключение к базе
 - name: Check PostgreSQL connection
   community.postgresql.postgresql_ping:
@@ -80,6 +72,14 @@
     state: started
     enabled: true
 
+- name: Create base dir
+  ansible.builtin.file:
+    path: "{{ netbox_base_dir }}"
+    state: directory
+    owner: "{{ netbox_user }}"
+    group: "{{ netbox_group }}"
+    mode: "0755"
+
 - name: Gather services
   ansible.builtin.service_facts:
 
@@ -88,18 +88,55 @@
   when:
     - "'netbox.service' not in ansible_facts.services"
 
-# TODO Заменить на шаблон
-- name: Скопировать скрипт синхронизации файлов с продом
-  ansible.builtin.copy:
-    src: files/netbox_sync.sh
+# TODO нужно проверять, что все плагины на месте
+- name: Create plugins dir
+  ansible.builtin.file:
+    path: "{{ netbox_plugins_dir }}"
+    state: directory
+    owner: "{{ netbox_user }}"
+    group: "{{ netbox_group }}"
+    mode: "0755"
+
+- name: Скопировать шаблон скрипта синхронизации
+  ansible.builtin.template:
+    src: netbox_sync.sh.j2
     dest: "/usr/local/bin/netbox_sync.sh"
     mode: '0755'
 
-- name: Скопировать ssh-ключ
-  ansible.builtin.copy:
-    src: files/id_rsa
-    dest: "/root/.ssh/id_rsa"
-    mode: '0600'
+- name: Ensure /root/.ssh exists
+  ansible.builtin.file:
+    path: /root/.ssh
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Generate root SSH keypair (ed25519) if missing
+  community.crypto.openssh_keypair:
+    path: /root/.ssh/id_ed25519
+    type: ed25519
+    owner: root
+    group: root
+    mode: "0600"
+    comment: "{{ inventory_hostname }}"
+  register: keypair
+
+- name: Read public key
+  ansible.builtin.slurp:
+    src: /root/.ssh/id_ed25519.pub
+  register: root_pub
+
+- name: Save public key into hostvars
+  ansible.builtin.set_fact:
+    root_pubkey: "{{ root_pub.content | b64decode | trim }}"
+
+- name: Authorize root keys from all netbox nodes
+  ansible.posix.authorized_key:
+    user: root
+    key: "{{ hostvars[item].root_pubkey }}"
+    state: present
+    manage_dir: false
+  loop: "{{ groups['netbox'] }}"
 
 - name: Create systemd service for haproxy_exporter
   copy:
@@ -142,35 +179,12 @@
       STDERR: {{ sync_result.stderr }}
   when: sync_result.rc != 0
 
-- name: Check if plugins directory exists
-  ansible.builtin.stat:
-    path: /opt/netbox/netbox/plugins
-  register: plugins_dir
-
-- name: Check if plugins directory exists
-  ansible.builtin.stat:
-    path: /etc/netbox_ad_sync.env
-  register: plugins_env
-
-- name: Cменить владельца netbox_ad_sync.env
-  ansible.builtin.file:
-    path: "/etc/netbox_ad_sync.env"
-    owner: "netbox"
-    group: "netbox"
-  when:
-    - plugins_env.stat.exists
-
-- name: Configure NetBox
-  ansible.builtin.include_tasks: configure.yml
-  when:
-    - plugins_env.stat.exists  # Переменные плагина существуют
-    - plugins_dir.stat.exists  # Директория plugins существует
-    - plugins_dir.stat.isdir   # И это именно директория
-    - pg_ping_check.is_available
-    - plugins_env.stat.exists
-
-- name: Create systemd services
-  ansible.builtin.include_tasks: systemd.yml
+- name: Starting NetBox
   when:
     - pg_ping_check.is_available
-    - plugins_env.stat.exists
+  block:
+    - name: Configure NetBox
+      ansible.builtin.include_tasks: configure.yml
+
+    - name: Create systemd services
+      ansible.builtin.include_tasks: systemd.yml
