@@ -66,7 +66,46 @@ High-level components:
 
 > Think of this setup as a **control-plane for NetBox**, similar to HA network services.
 
-(Architecture diagram goes here)
+```text
+<ASCII-scheme>
+                    Users / Automation
+                  (Engineers, CI/CD, API)
+                            |
+                            v
+                +--------------------------------+
+                |        Virtual IP (VIP)        |
+                |   HAProxy + Keepalived (HA)    |
+                +--------------------------------+
+                            |
+          -------------------------------------------------
+          |                       |                       |
+          v                       v                       v
++----------------+     +----------------+     +----------------+
+|    NetBox #1   |     |    NetBox #2   |     |    NetBox #3   |
+|  Web + Workers |     |  Web + Workers |     |  Web + Workers |
+|   (stateless)  |     |   (stateless)  |     |   (stateless)  |
++----------------+     +----------------+     +----------------+
+          |                       |                       |
+          +-----------+-----------+-----------+-----------+
+                      |                       |
+                      v                       v
+        ======================        ======================
+        =  PostgreSQL Cluster =        =     Redis HA     =
+        ======================        ======================
+        +------------+               +------------+
+        | Postgres 1 |<---- Leader   |  Redis 1   |  Master
+        +------------+               +------------+
+        | Postgres 2 |  Replica      |  Redis 2   |  Replica
+        +------------+               +------------+
+        | Postgres 3 |  Replica      |  Redis 3   |  Replica
+        +------------+               +------------+
+               |
+            Patroni
+               |
+              etcd
+          (quorum / leader election)
+
+```
 
 ---
 
