@@ -1,0 +1,176 @@
+- name: Ensure APT cache is updated
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+
+- name: Install base packages
+  ansible.builtin.apt:
+    name: "{{ packages }}"
+    state: present
+
+- name: Create netbox group
+  ansible.builtin.group:
+    name: "{{ netbox_group }}"
+    system: true
+
+- name: Create netbox user
+  ansible.builtin.user:
+    name: "{{ netbox_user }}"
+    group: "{{ netbox_group }}"
+    shell: "{{ netbox_system_user_shell }}"
+    system: true
+    create_home: false
+
+- name: Create base dir
+  ansible.builtin.file:
+    path: "{{ netbox_base_dir }}"
+    state: directory
+    owner: "{{ netbox_user }}"
+    group: "{{ netbox_group }}"
+    mode: "0755"
+
+# проверяем подключение к базе
+- name: Check PostgreSQL connection
+  community.postgresql.postgresql_ping:
+    login_host: "{{ vip_address }}"
+    login_port: "{{ postgres_port }}"
+    login_user: "{{ pg_superuser }}"
+    login_password: "{{ pg_superuser_password }}"
+    login_db: "postgres"
+  register: pg_ping_check
+  until: pg_ping_check is succeeded
+  retries: 5
+  delay: 3
+  ignore_errors: yes
+  run_once: true
+  delegate_to: "{{ groups['netbox'][0] }}"
+
+- name: Create DB user
+  community.postgresql.postgresql_user:
+    name: "{{ netbox_db_user }}"
+    password: "{{ netbox_db_password }}"
+    state: present
+    login_host: "{{ vip_address }}"
+    login_user: postgres
+    login_password: "{{ pg_superuser_password }}"
+  become_user: postgres
+  run_once: true
+  delegate_to: "{{ groups['netbox'][0] }}"
+  when:
+    - pg_ping_check.is_available
+
+- name: Create DB
+  community.postgresql.postgresql_db:
+    name: "{{ netbox_db_name }}"
+    owner: "{{ netbox_db_user }}"
+    state: present
+    login_host: "{{ vip_address }}"
+    login_user: postgres
+    login_password: "{{ pg_superuser_password }}"
+  become_user: postgres
+  run_once: true
+  delegate_to: "{{ groups['netbox'][0] }}"
+  when:
+    - pg_ping_check.is_available
+
+# TODO плохой таск нужно что-то вроде "redis-cli -h 172.16.0.196 -p 6379 -a 'UEOt2+BJso.,' ROLE"
+- name: Ensure Redis is started
+  ansible.builtin.service:
+    name: redis-server
+    state: started
+    enabled: true
+
+- name: Gather services
+  ansible.builtin.service_facts:
+
+- name: Install NetBox from git or archive
+  ansible.builtin.include_tasks: "netbox_{{ netbox_install_method }}.yml"
+  when:
+    - "'netbox.service' not in ansible_facts.services"
+
+# TODO Заменить на шаблон
+- name: Скопировать скрипт синхронизации файлов с продом
+  ansible.builtin.copy:
+    src: files/netbox_sync.sh
+    dest: "/usr/local/bin/netbox_sync.sh"
+    mode: '0755'
+
+- name: Скопировать ssh-ключ
+  ansible.builtin.copy:
+    src: files/id_rsa
+    dest: "/root/.ssh/id_rsa"
+    mode: '0600'
+
+- name: Create systemd service for haproxy_exporter
+  copy:
+    dest: /etc/crontab
+    mode: "0644"
+    content: |
+      SHELL=/bin/sh
+      PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      # Example of job definition:
+      # .---------------- minute (0 - 59)
+      # |  .------------- hour (0 - 23)
+      # |  |  .---------- day of month (1 - 31)
+      # |  |  |  .------- month (1 - 12) OR jan,feb,mar,apr ...
+      # |  |  |  |  .---- day of week (0 - 6) (Sunday=0 or 7) OR sun,mon,tue,wed,thu,fri,sat
+      # |  |  |  |  |
+      # *  *  *  *  * user-name command to be executed
+      17 *    * * *   root    cd / && run-parts --report /etc/cron.hourly
+      25 6    * * *   root    test -x /usr/sbin/anacron || { cd / && run-parts --report /etc/cron.daily; }
+      47 6    * * 7   root    test -x /usr/sbin/anacron || { cd / && run-parts --report /etc/cron.weekly; }
+      52 6    1 * *   root    test -x /usr/sbin/anacron || { cd / && run-parts --report /etc/cron.monthly; }
+      0  2    * * *   root    /bin/bash /usr/local/bin/netbox_sync.sh
+
+- name: Синхронизируем с продом (с таймаутом)
+  ansible.builtin.shell: /usr/local/bin/netbox_sync.sh
+  args:
+    executable: /bin/bash
+  register: sync_result
+  until: sync_result.rc == 0
+  retries: 5
+  delay: 30
+  timeout: 300                # Общий таймаут для всех попыток
+  ignore_errors: yes
+  changed_when: sync_result.rc == 0
+
+- name: Показать результат синхронизации
+  debug:
+    msg: |
+      RC: {{ sync_result.rc }}
+      STDOUT: {{ sync_result.stdout }}
+      STDERR: {{ sync_result.stderr }}
+  when: sync_result.rc != 0
+
+- name: Check if plugins directory exists
+  ansible.builtin.stat:
+    path: /opt/netbox/netbox/plugins
+  register: plugins_dir
+
+- name: Check if plugins directory exists
+  ansible.builtin.stat:
+    path: /etc/netbox_ad_sync.env
+  register: plugins_env
+
+- name: Cменить владельца netbox_ad_sync.env
+  ansible.builtin.file:
+    path: "/etc/netbox_ad_sync.env"
+    owner: "netbox"
+    group: "netbox"
+  when:
+    - plugins_env.stat.exists
+
+- name: Configure NetBox
+  ansible.builtin.include_tasks: configure.yml
+  when:
+    - plugins_env.stat.exists  # Переменные плагина существуют
+    - plugins_dir.stat.exists  # Директория plugins существует
+    - plugins_dir.stat.isdir   # И это именно директория
+    - pg_ping_check.is_available
+    - plugins_env.stat.exists
+
+- name: Create systemd services
+  ansible.builtin.include_tasks: systemd.yml
+  when:
+    - pg_ping_check.is_available
+    - plugins_env.stat.exists
