@@ -23,6 +23,13 @@
     enabled: true
     daemon_reload: true
 
+- name: Restart pgbouncer
+  ansible.builtin.systemd:
+    name: "{{ pgb_service_name }}"
+    state: restarted
+    enabled: true
+    daemon_reload: true
+
 - name: Restart keepalived
   ansible.builtin.systemd:
     name: keepalived

@@ -1,0 +1,87 @@
+- name: Ensure pgbouncer is installed (Debian/Ubuntu)
+  ansible.builtin.apt:
+    name: "{{ pgb_package_name }}"
+    state: present
+    update_cache: true
+  when: ansible_os_family == "Debian"
+
+- name: Ensure pgbouncer is installed (RHEL)
+  ansible.builtin.yum:
+    name: "{{ pgb_package_name }}"
+    state: present
+  when: ansible_os_family == "RedHat"
+
+- name: Ensure config dir exists
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop: ["{{ pgb_config_dir }}", "/usr/lib/systemd/system/pgbouncer.service.d"]
+
+- name: Ensure run dir exists
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: "0755"
+  loop: ["/var/run/pgbouncer"]
+
+- name: Gather services
+  ansible.builtin.service_facts:
+
+- name: Stop pgbouncer if present
+  ansible.builtin.systemd:
+    name: pgbouncer
+    state: stopped
+    enabled: false
+  when: "'pgbouncer.service' in ansible_facts.services"
+
+- name: Systemd drop-in (runtime dir + limits)
+  ansible.builtin.copy:
+    dest: /usr/lib/systemd/system/pgbouncer.service.d/override.conf
+    content: |
+      [Service]
+      User=postgres
+      Group=postgres
+      RuntimeDirectory=pgbouncer
+      RuntimeDirectoryMode=0750
+      LimitNOFILE=8192
+  notify: Reload systemd
+
+- name: Deploy pgbouncer.ini
+  ansible.builtin.template:
+    src: "pgbouncer.ini.j2"
+    dest: "{{ pgb_config_file }}"
+    owner: postgres
+    group: postgres
+    mode: "0644"
+  notify: Restart pgbouncer
+
+- name: Deploy userlist.txt
+  ansible.builtin.template:
+    src: "userlist.txt.j2"
+    dest: "{{ pgb_auth_file }}"
+    owner: postgres
+    group: postgres
+    mode: "0640"
+  notify: Restart pgbouncer
+
+# (опционально) открыть порт, но мы слушаем только 127.0.0.1 — правило не требуется
+- name: Open firewalld port for pgbouncer (optional)
+  ansible.builtin.firewalld:
+    port: "{{ pgb_listen_port }}/tcp"
+    permanent: true
+    state: enabled
+    immediate: true
+  when:
+    - ansible_os_family == "RedHat"
+    - pgb_manage_firewalld | bool
+
+- name: Enable and start service
+  ansible.builtin.systemd:
+    name: "{{ pgb_service_name }}"
+    enabled: true
+    state: started
