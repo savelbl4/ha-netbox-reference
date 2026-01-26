@@ -1,5 +1,5 @@
 - name: Stop netbox
-  service:
+  ansible.builtin.service:
     name: "{{ item }}"
     state: stopped
     enabled: false

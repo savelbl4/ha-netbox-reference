@@ -1,5 +1,5 @@
 - name: Ensure apt cache is up to date
-  apt:
+  ansible.builtin.apt:
     update_cache: true
     cache_valid_time: 3600
 
@@ -22,7 +22,7 @@
 
 # стопим кастомный сервис перед манипуляциями с данными
 - name: Stop etcd-patroni before data ops
-  systemd:
+  ansible.builtin.systemd:
     name: etcd-patroni
     state: stopped
   failed_when: false
@@ -41,12 +41,12 @@
   when: etcd_migrate_old_data | bool
   block:
     - name: Check if old data dir exists and non-empty
-      stat:
+      ansible.builtin.stat:
         path: "{{ etcd_old_data_dir }}"
       register: etcd_old_dir
 
     - name: Move old data to new dir
-      command: >
+      ansible.builtin.command: >
         bash -lc 'shopt -s dotglob && if [ -d "{{ etcd_old_data_dir }}" ] && [ "$(ls -A {{ etcd_old_data_dir }})" ]; then
           rm -rf "{{ etcd_data_dir }}" && mv "{{ etcd_old_data_dir }}" "{{ etcd_data_dir }}";
         fi'

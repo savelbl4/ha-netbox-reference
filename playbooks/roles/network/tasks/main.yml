@@ -1,8 +1,8 @@
 - name: Hostname
-  command: hostnamectl hostname "{{ inventory_hostname }}"
+  ansible.builtin.command: hostnamectl hostname "{{ inventory_hostname }}"
 
 - name: Set hostname
-  command: hostnamectl set-hostname "{{ inventory_hostname }}"."{{ FQDN }}"
+  ansible.builtin.command: hostnamectl set-hostname "{{ inventory_hostname }}"."{{ FQDN }}"
 
 - name: Set hostname in /etc/hosts
   ansible.builtin.replace:
@@ -32,7 +32,7 @@
   when: network_ip_exists.rc != 0
 
 - name: Wait...
-  pause:
+  ansible.builtin.pause:
     seconds: 4
 
 - name: Wait for SSH on the new IP (without switching yet)

@@ -7,9 +7,9 @@
   when: "'angie' in ansible_facts.packages"
 
 - name: Install Angie
-  include_tasks: install.yml
+  ansible.builtin.include_tasks: install.yml
   when: not (angie_exists | default(false))
 
 - name: Configure Netbox
-  include_tasks: configure-netbox.yml
+  ansible.builtin.include_tasks: configure-netbox.yml
   when: "'netbox' in group_names"

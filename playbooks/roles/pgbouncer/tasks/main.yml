@@ -6,7 +6,7 @@
   when: ansible_os_family == "Debian"
 
 - name: Ensure pgbouncer is installed (RHEL)
-  ansible.builtin.yum:
+  ansible.builtin.package:
     name: "{{ pgb_package_name }}"
     state: present
   when: ansible_os_family == "RedHat"
@@ -42,6 +42,9 @@
 - name: Systemd drop-in (runtime dir + limits)
   ansible.builtin.copy:
     dest: /usr/lib/systemd/system/pgbouncer.service.d/override.conf
+    owner: root
+    group: root
+    mode: "0644"
     content: |
       [Service]
       User=postgres
@@ -71,7 +74,7 @@
 
 # (опционально) открыть порт, но мы слушаем только 127.0.0.1 — правило не требуется
 - name: Open firewalld port for pgbouncer (optional)
-  ansible.builtin.firewalld:
+  ansible.posix.firewalld:
     port: "{{ pgb_listen_port }}/tcp"
     permanent: true
     state: enabled

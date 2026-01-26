@@ -62,21 +62,21 @@
 
 # Optional venv with Patroni extras (robust DCS support)
 - name: Ensure Patroni venv exists
-  command: "python3 -m venv {{ patroni_venv_dir }}"
+  ansible.builtin.command: "python3 -m venv {{ patroni_venv_dir }}"
   args:
     creates: "{{ patroni_venv_dir }}/bin/activate"
   when: patroni_use_venv | bool
 
 - name: Upgrade pip in venv
-  command: "{{ patroni_venv_dir }}/bin/pip install --upgrade pip"
+  ansible.builtin.command: "{{ patroni_venv_dir }}/bin/pip install --upgrade pip"
   when: patroni_use_venv | bool
 
 - name: Install Patroni with etcd3 + psycopg in venv
-  command: "{{ patroni_venv_dir }}/bin/pip install 'patroni[etcd3,psycopg2-binary]'"
+  ansible.builtin.command: "{{ patroni_venv_dir }}/bin/pip install 'patroni[etcd3,psycopg2-binary]'"
   when: patroni_use_venv | bool
 
 - name: Drop default cluster if exists (idempotent; only for bootstrap path)
-  shell: |
+  ansible.builtin.shell: |
     set -e
     if pg_lsclusters | awk '$1=="{{ pg_version }}" && $2=="main"{print}' | grep -q . ; then
       pg_dropcluster --stop {{ pg_version }} main

@@ -17,7 +17,7 @@
   ansible.builtin.user:
     name: "{{ netbox_user }}"
     group: "{{ netbox_group }}"
-    shell: "{{ netbox_system_user_shell }}"
+    ansible.builtin.shell: "{{ netbox_system_user_shell }}"
     system: true
     create_home: false
 
@@ -132,7 +132,7 @@
 
 - name: Authorize root keys from all netbox nodes
   ansible.posix.authorized_key:
-    user: root
+    ansible.builtin.user: root
     key: "{{ hostvars[item].netbox_root_pubkey }}"
     state: present
     manage_dir: false
@@ -172,7 +172,7 @@
   changed_when: netbox_sync_result.rc == 0
 
 - name: Показать результат синхронизации
-  debug:
+  ansible.builtin.debug:
     msg: |
       RC: {{ netbox_sync_result.rc }}
       STDOUT: {{ netbox_sync_result.stdout }}
