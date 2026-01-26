@@ -1,0 +1,19 @@
+#!/bin/bash
+{# на удалённом хосте должен быть поднят hastebin #}
+PASTE_ADDRESS="http://{{ logging_remote_host }}/paste/"
+
+function die {
+    echo $*
+    exit 1
+}
+
+function hastebin {
+   format=""
+   curl -X POST -s --data-binary "@$1" ${PASTE_ADDRESS}documents | awk -v addr="$PASTE_ADDRESS" -v format="$format" -F '"' '{print addr$4format}'
+}
+
+if [ -f "$1" ]; then
+    hastebin $1
+else
+    die "usage $0 file.log"
+fi

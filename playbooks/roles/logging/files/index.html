@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Командные логи</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f5f5f5; }
+        input { margin: 0 10px 10px 0; padding: 5px; }
+        table { border-collapse: collapse; width: 100%; background: white; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background-color: #eee; }
+        tr:hover { background: #f1f1f1; }
+        .warn { background: #fff7bc; }
+        .sudo  { color: #c62828; font-weight: bold; }
+        .pagination { margin: 15px 0; }
+        .pagination button { margin-right: 5px; padding: 5px 12px; border: none; background: #e0e0e0; border-radius: 5px; cursor: pointer; }
+        .pagination button.active { background: #1976d2; color: white; }
+        .pagination button:disabled { background: #bdbdbd; color: #888; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+<div id="logNotify" style="
+    display:none;
+    position:fixed;
+    top:30px;
+    right:30px;
+    background:#1976d2;
+    color:white;
+    padding:12px 22px;
+    border-radius:12px;
+    font-size:1.1em;
+    box-shadow:0 2px 12px rgba(0,0,0,0.08);
+    z-index:9999;
+    pointer-events:none;
+    opacity:0;
+    transition:opacity 0.3s;
+">Логи обновлены</div>
+    <h2>Фильтр команд в реальном времени</h2>
+    <label>Дата: <input type="text" id="dateInput" placeholder="2025-07-16"></label>
+    <label>Пользователь: <input type="text" id="userInput" placeholder="root или sysadm"></label>
+    <label>IP/TTY: <input type="text" id="ipInput" placeholder="10.6.90.30 или :pts/0"></label>
+    <label>Команда: <input type="text" id="commandInput" placeholder="например, sudo"></label>
+
+    <div class="pagination" id="paginationTop"></div>
+    <table>
+        <thead>
+            <tr>
+                <th>Дата</th>
+                <th>Хост</th>
+                <th>Пользователь</th>
+                <th>IP/TTY</th>
+                <th>Каталог</th>
+                <th>Команда</th>
+            </tr>
+        </thead>
+        <tbody id="logTableBody"></tbody>
+    </table>
+    <div class="pagination" id="paginationBottom"></div>
+
+<script>
+let allLogs = [];
+let filteredLogs = [];
+let currentPage = 1;
+const logsPerPage = 100;
+
+async function fetchAndRenderLogs() {
+    const response = await fetch('terminal_commands.log');
+    const text = await response.text();
+    allLogs = text.split('\n').filter(line => line.trim() !== '');
+
+    // Сортировка по дате убывания
+    allLogs.sort((a, b) => {
+        function getDate(s) {
+            let m = s.match(/^(\d{4}-\d{2}-\d{2}T[\d:.+\-]+)/);
+            if (m) return new Date(m[1]);
+            m = s.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
+            if (m) return new Date(m[1].replace(' ', 'T'));
+            return new Date(0);
+        }
+        return getDate(b) - getDate(a);
+    });
+
+    applyFiltersAndRender();
+}
+
+function formatDate(dateStr) {
+    // ISO: 2025-07-16T15:31:11.233856+03:00
+    if (dateStr.includes('T')) {
+        const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})/);
+        if (match) {
+            const [, year, month, day, hour, min, sec] = match;
+            return `${day}.${month}.${year} ${hour}:${min}:${sec}`;
+        }
+    } else {
+        // 2025-07-16 15:31:11
+        const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})/);
+        if (match) {
+            const [, year, month, day, hour, min, sec] = match;
+            return `${day}.${month}.${year} ${hour}:${min}:${sec}`;
+        }
+    }
+    return dateStr;
+}
+
+function applyFiltersAndRender(page=1) {
+    currentPage = page;
+    const dateFilter = document.getElementById('dateInput').value.trim();
+    const userFilter = document.getElementById('userInput').value.trim();
+    const ipFilter = document.getElementById('ipInput').value.trim();
+    const commandFilter = document.getElementById('commandInput').value.trim();
+
+    filteredLogs = allLogs.filter(line => {
+        let match = line.match(
+            /^(\d{4}-\d{2}-\d{2}T[\d:.+\-]+)\s+(\S+)\s+terminal_command(?:\[(\d+)\])?:\s+(\S+)\s+(\S+)\s+(\S+):\s+(.+)$/
+        );
+        let date='', host='', user='', ip='', path='', command='';
+        if (match) {
+            [, date, host, , user, ip, path, command] = match;
+        } else {
+            match = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (\S+) (\S+) (\S+): (.+)$/);
+            if (match) {
+                [, date, user, ip, path, command] = match;
+                host = '';
+            } else {
+                match = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (\S+) (\S+): (.+)$/);
+                if (match) {
+                    [, date, user, path, command] = match;
+                    ip = '';
+                    host = '';
+                } else {
+                    return false;
+                }
+            }
+        }
+
+        if (dateFilter && (!date || !date.includes(dateFilter))) return false;
+        if (userFilter && (!user || !user.includes(userFilter))) return false;
+        if (ipFilter && (!ip || !ip.includes(ipFilter))) return false;
+        if (commandFilter && (!command || !command.toLowerCase().includes(commandFilter.toLowerCase()))) return false;
+        return true;
+    });
+
+    renderLogsPage(currentPage);
+    renderPagination();
+}
+
+function renderLogsPage(page=1) {
+    const tbody = document.getElementById('logTableBody');
+    tbody.innerHTML = '';
+    const start = (page - 1) * logsPerPage;
+    const end = Math.min(start + logsPerPage, filteredLogs.length);
+
+    for (let i = start; i < end; i++) {
+        const line = filteredLogs[i];
+        let match = line.match(
+            /^(\d{4}-\d{2}-\d{2}T[\d:.+\-]+)\s+(\S+)\s+terminal_command(?:\[(\d+)\])?:\s+(\S+)\s+(\S+)\s+(\S+):\s+(.+)$/
+        );
+        let date='', host='', user='', ip='', path='', command='';
+        if (match) {
+            [, date, host, , user, ip, path, command] = match;
+        } else {
+            match = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (\S+) (\S+) (\S+): (.+)$/);
+            if (match) {
+                [, date, user, ip, path, command] = match;
+                host = '';
+            } else {
+                match = line.match(/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) (\S+) (\S+): (.+)$/);
+                if (match) {
+                    [, date, user, path, command] = match;
+                    ip = '';
+                    host = '';
+                } else {
+                    continue;
+                }
+            }
+        }
+
+        const row = document.createElement('tr');
+        [formatDate(date), host, user, ip, path, command].forEach((text, idx) => {
+            const td = document.createElement('td');
+            td.textContent = text || '';
+            row.appendChild(td);
+        });
+        tbody.appendChild(row);
+    }
+}
+
+function renderPagination() {
+    const pageCount = Math.ceil(filteredLogs.length / logsPerPage);
+    const pagDivs = [document.getElementById('paginationTop'), document.getElementById('paginationBottom')];
+
+    pagDivs.forEach(pagDiv => {
+        pagDiv.innerHTML = '';
+        if (pageCount <= 1) return;
+
+        const prevBtn = document.createElement('button');
+        prevBtn.textContent = '«';
+        prevBtn.disabled = currentPage === 1;
+        prevBtn.onclick = () => { applyFiltersAndRender(currentPage - 1); };
+        pagDiv.appendChild(prevBtn);
+
+        // Показываем максимум 7 страниц
+        let startPage = Math.max(1, currentPage - 3);
+        let endPage = Math.min(pageCount, currentPage + 3);
+        if (endPage - startPage < 6) {
+            if (startPage === 1) endPage = Math.min(7, pageCount);
+            else if (endPage === pageCount) startPage = Math.max(1, pageCount - 6);
+        }
+
+        for (let p = startPage; p <= endPage; p++) {
+            const btn = document.createElement('button');
+            btn.textContent = p;
+            if (p === currentPage) btn.classList.add('active');
+            btn.onclick = (() => p => () => { applyFiltersAndRender(p); })(p);
+            pagDiv.appendChild(btn);
+        }
+
+        const nextBtn = document.createElement('button');
+        nextBtn.textContent = '»';
+        nextBtn.disabled = currentPage === pageCount;
+        nextBtn.onclick = () => { applyFiltersAndRender(currentPage + 1); };
+        pagDiv.appendChild(nextBtn);
+
+        const info = document.createElement('span');
+        info.textContent = `  Показано ${filteredLogs.length === 0 ? 0 : ((currentPage - 1) * logsPerPage + 1)}–${Math.min(currentPage * logsPerPage, filteredLogs.length)} из ${filteredLogs.length}`;
+        info.style.marginLeft = "12px";
+        pagDiv.appendChild(info);
+    });
+}
+
+// Debounce функция
+function debounce(func, wait) {
+    let timeout;
+    return function(...args) {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => func.apply(this, args), wait);
+    };
+}
+function showLogNotify(msg = "Логи обновлены") {
+    const div = document.getElementById('logNotify');
+    div.textContent = msg;
+    div.style.display = "block";
+    div.style.opacity = "1";
+    setTimeout(() => {
+        div.style.opacity = "0";
+        setTimeout(() => div.style.display = "none", 350);
+    }, 1800); // 1.8 сек видно
+}
+const debouncedFilter = debounce(() => applyFiltersAndRender(1), 250);
+
+document.getElementById('dateInput').addEventListener('input', debouncedFilter);
+document.getElementById('userInput').addEventListener('input', debouncedFilter);
+document.getElementById('ipInput').addEventListener('input', debouncedFilter);
+document.getElementById('commandInput').addEventListener('input', debouncedFilter);
+
+fetchAndRenderLogs();
+// Автоматическая подгрузка новых логов каждую минуту
+setInterval(() => {
+    fetchAndRenderLogs();
+    showLogNotify(); // <-- вот здесь!
+    // Можно добавить уведомление о новых логах, если хочешь
+}, 60000); // например, раз в минуту
+</script>
+</body>
+</html>

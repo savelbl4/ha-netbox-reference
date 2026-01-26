@@ -1,0 +1,19 @@
+{# на удалённом хосте должен быть настроен rsyslog на приём #}
+if $programname == 'terminal_command' then {
+  action(
+    type="omfwd"
+    target="{{ logging_remote_host }}"
+    port="514"
+    protocol="tcp"
+{## бесконечно переподключаться#}
+    Action.ResumeRetryCount="-1"
+    Action.ResumeInterval="30"
+    Queue.Type="LinkedList"
+    Queue.FileName="fwdTerminalQueue"
+    Queue.MaxDiskSpace="1g"
+    Queue.SaveOnShutdown="on"
+    Queue.MaxFileSize="100m"
+    Queue.CheckpointInterval="100"
+  )
+  stop
+}
