@@ -1,0 +1,211 @@
+- name: Ensure apt cache is up to date
+  apt:
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Install etcd (includes etcdctl)
+  package:
+    name: "{{ item }}"
+    state: present
+  loop: [etcd-client, etcd-server, net-tools]
+
+- name: Create config and data directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: etcd
+    group: etcd
+    mode: "0755"
+  loop:
+    - /etc/etcd
+    - /var/lib/etcd
+
+# стопим кастомный сервис перед манипуляциями с данными
+- name: Stop etcd-patroni before data ops
+  systemd:
+    name: etcd-patroni
+    state: stopped
+  failed_when: false
+
+# создать новый каталог данных с жёсткими правами
+- name: Ensure etcd_data_dir exists with strict perms
+  ansible.builtin.file:
+    path: "{{ etcd_data_dir }}"
+    state: directory
+    owner: etcd
+    group: etcd
+    mode: "0700"
+
+# опционально мигрируем старые данные
+- name: Migrate old data dir to new location (one-time)
+  when: etcd_migrate_old_data | bool
+  block:
+    - name: Check if old data dir exists and non-empty
+      stat:
+        path: "{{ etcd_old_data_dir }}"
+      register: etcd_old_dir
+
+    - name: Move old data to new dir
+      command: >
+        bash -lc 'shopt -s dotglob && if [ -d "{{ etcd_old_data_dir }}" ] && [ "$(ls -A {{ etcd_old_data_dir }})" ]; then
+          rm -rf "{{ etcd_data_dir }}" && mv "{{ etcd_old_data_dir }}" "{{ etcd_data_dir }}";
+        fi'
+      when: etcd_old_dir.stat.exists
+
+    - name: Fix ownership on data dir after move
+      ansible.builtin.file:
+        path: "{{ etcd_data_dir }}"
+        state: directory
+        owner: etcd
+        group: etcd
+        recurse: true
+        mode: "0700"
+
+# опциональная чистая инициализация
+- name: Purge data dir for clean init
+  when: etcd_reinit | bool
+  block:
+    - name: Remove data dir
+      ansible.builtin.file:
+        path: "{{ etcd_data_dir }}"
+        state: absent
+    - name: Recreate data dir
+      ansible.builtin.file:
+        path: "{{ etcd_data_dir }}"
+        state: directory
+        owner: etcd
+        group: etcd
+        mode: "0700"
+
+- name: Render etcd main config
+  ansible.builtin.template:
+    src: etcd.conf.yml.j2
+    dest: /etc/etcd/etcd.conf.yml
+    owner: root
+    group: root
+    mode: "0644"
+#  notify: Restart etcd
+
+# Остановить и отключить штатный etcd, если есть
+- name: Stop and disable stock etcd service if present
+  ansible.builtin.systemd:
+    name: etcd
+    state: stopped
+    enabled: false
+  failed_when: false
+  changed_when: false
+
+# На всякий случай замаскировать, чтобы не стартовал случайно
+- name: Mask stock etcd service
+  ansible.builtin.systemd:
+    name: etcd
+    masked: true
+  failed_when: false
+
+- name: Install etcd-patroni systemd unit
+  ansible.builtin.template:
+    src: etcd-patroni.service.j2
+    dest: /usr/lib/systemd/system/etcd-patroni.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload systemd
+
+# перезагружаем юниты (если менялись) и включаем наш кастомный сервис
+- name: Daemon-reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable etcd-patroni (leave stopped if you want to start later)
+  ansible.builtin.systemd:
+    name: etcd-patroni
+    enabled: true
+    state: started
+
+- name: Optionally open UFW ports
+  when: etcd_manage_ufw | bool
+  block:
+    - name: Ensure ufw is installed
+      ansible.builtin.apt:
+        name: ufw
+        state: present
+
+    - name: Allow client port
+      community.general.ufw:
+        rule: allow
+        port: "{{ etcd_client_port }}"
+        proto: tcp
+
+    - name: Allow peer port
+      community.general.ufw:
+        rule: allow
+        port: "{{ etcd_peer_port }}"
+        proto: tcp
+
+# авто-дефраг по расписанию
+- name: Auto defrag
+  run_once: true
+  delegate_to: "{{ groups['etcd'][0] }}"
+  block:
+    - name: Build endpoints list safely (no backrefs)
+      set_fact:
+        etcd_endpoints_joined: >-
+          {{ groups['etcd']
+             | map('extract', hostvars, 'node_ip')
+             | map('regex_replace', '$', ':' ~ etcd_client_port|string)
+             | join(',') }}
+
+    - name: Show the value of a variable
+      ansible.builtin.debug:
+        var: etcd_endpoints_joined
+
+    - name: Install defrag script on first etcd host
+      ansible.builtin.copy:
+        dest: /usr/local/sbin/etcd-defrag.sh
+        mode: "0755"
+        content: |
+          #!/usr/bin/env bash
+          set -euo pipefail
+          export ETCDCTL_API=3
+          ETCDCTL="etcdctl --endpoints={{ etcd_endpoints_joined }}"
+          echo "[$(date -Is)] starting defrag for cluster: {{ etcd_endpoints_joined }}"
+          $ETCDCTL endpoint status -w table || true
+          $ETCDCTL defrag --cluster
+          echo "[$(date -Is)] defrag done"
+
+    - name: Install systemd unit for defrag
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/etcd-defrag.service
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Etcd cluster defragmentation
+          After=network-online.target
+          Wants=network-online.target
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/sbin/etcd-defrag.sh
+
+    - name: Install systemd timer for defrag (weekly, random delay)
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/etcd-defrag.timer
+        mode: "0644"
+        content: |
+          [Unit]
+          Description=Weekly etcd defragmentation timer
+
+          [Timer]
+          OnCalendar=weekly
+          RandomizedDelaySec=1800
+          Persistent=true
+
+          [Install]
+          WantedBy=timers.target
+
+    - name: Enable & start defrag timer
+      ansible.builtin.systemd:
+        name: etcd-defrag.timer
+        enabled: true
+        state: started
+        daemon_reload: true

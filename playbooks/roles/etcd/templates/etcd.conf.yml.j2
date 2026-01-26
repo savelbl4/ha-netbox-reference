@@ -1,0 +1,28 @@
+name: {{ inventory_hostname }}
+data-dir: {{ etcd_data_dir }}
+
+# client URLs (для Patroni/etcdctl)
+listen-client-urls: "http://0.0.0.0:{{ etcd_client_port }}"
+advertise-client-urls: "http://{{ hostvars[inventory_hostname].node_ip | default(inventory_hostname) }}:{{ etcd_client_port }}"
+
+# peer URLs (межузловые)
+listen-peer-urls: "http://0.0.0.0:{{ etcd_peer_port }}"
+initial-advertise-peer-urls: "http://{{ hostvars[inventory_hostname].node_ip | default(inventory_hostname) }}:{{ etcd_peer_port }}"
+
+initial-cluster-token: {{ etcd_cluster_token }}
+{# Определяем, откуда брать хосты кластера: etcd или текущую группу #}
+{% set cluster_group = 'etcd' if 'etcd' in groups else group_names[0] %}
+{% set peers = [] %}
+{% for h in groups[cluster_group] %}
+  {% set _ = peers.append( (hostvars[h].inventory_hostname | default(h)) ~ '=http://' ~ (hostvars[h].node_ip | default(h)) ~ ':' ~ etcd_peer_port|string ) %}
+{% endfor %}
+
+initial-cluster: "{{ peers | join(',') }}"
+initial-cluster-state: new
+
+# housekeeping
+auto-compaction-mode: "{{ etcd_auto_compaction_mode | default('periodic') }}"
+auto-compaction-retention: "{{ etcd_auto_compaction_retention }}"
+snapshot-count: {{ etcd_snapshot_count }}
+logger: zap
+log-level: info
