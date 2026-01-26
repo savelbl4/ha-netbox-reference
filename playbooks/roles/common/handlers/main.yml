@@ -1,0 +1,47 @@
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Restart rsyslog
+  ansible.builtin.systemd:
+    name: rsyslog
+    state: restarted
+    enabled: true
+    daemon_reload: true
+
+- name: Restart haproxy
+  ansible.builtin.systemd:
+    name: haproxy
+    state: restarted
+    enabled: true
+    daemon_reload: true
+
+- name: Restart keepalived
+  ansible.builtin.systemd:
+    name: keepalived
+    state: restarted
+    enabled: true
+    daemon_reload: true
+
+- name: Restart redis
+  ansible.builtin.systemd:
+    name: redis-server
+    state: restarted
+    enabled: true
+    daemon_reload: true
+
+- name: Restart sentinel
+  ansible.builtin.systemd:
+    name: redis-sentinel
+    state: restarted
+    enabled: true
+    daemon_reload: true
+
+- name: Restart NetBox
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    state: restarted
+    daemon_reload: true
+  loop:
+    - netbox
+    - netbox-rq
