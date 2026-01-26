@@ -1,0 +1,5 @@
+- name: Install NetBox
+  hosts: netbox
+  roles:
+    - common
+    - netbox
