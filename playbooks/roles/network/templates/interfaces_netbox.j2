@@ -1,0 +1,19 @@
+# This file describes the network interfaces available on your system
+# and how to activate them. For more information, see interfaces(5).
+
+source /etc/network/interfaces.d/*
+
+# The loopback network interface
+auto lo
+iface lo inet loopback
+
+{#
+генерируем адреса по порядку, в зависимости от выбранной сети
+#}
+{% set idx = (groups['netbox'] | list).index(inventory_hostname) %}
+allow-hotplug eth0
+iface eth0 inet static
+    address {{ hostvars[inventory_hostname].node_ip }}
+    netmask 255.255.255.{{ {'24': '0', '25': '128'}[inner_prefix] }}
+    gateway {{ vip_address | trim | regex_replace('\\d+$', '') }}{{ {'24': '1', '25': '129'}[inner_prefix] }}
+    dns-nameservers {{ network_dns_nameservers }}

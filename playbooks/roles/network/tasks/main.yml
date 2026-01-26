@@ -1,0 +1,56 @@
+- name: Hostname
+  command: hostnamectl hostname "{{ inventory_hostname }}"
+
+- name: Set hostname
+  command: hostnamectl set-hostname "{{ inventory_hostname }}"."{{ FQDN }}"
+
+- name: Set hostname in /etc/hosts
+  ansible.builtin.replace:
+    path: /etc/hosts
+    regexp: '^127\.0\.1\.1.*'
+    replace: "127.0.1.1 {{ inventory_hostname }}.{{ FQDN }} {{ inventory_hostname }}"
+
+- name: Set role
+  ansible.builtin.set_fact:
+    network_role: "_netbox"
+  when: "'netbox' in group_names"
+
+- name: Copy config
+  ansible.builtin.template:
+    src: "interfaces{{ network_role }}.j2"
+    dest: "{{ network_main_conf }}"
+    mode: '0644'
+
+- name: Check if IP already exists
+  ansible.builtin.shell: ip addr show {{ keepalived_interface }} | grep -q "{{ node_ip }}"
+  register: network_ip_exists
+  ignore_errors: true
+  changed_when: false
+
+- name: Add temporary IP to iface
+  ansible.builtin.command: "ip addr add {{ node_ip }}/{{ out_prefix }} dev {{ keepalived_interface }}"
+  when: network_ip_exists.rc != 0
+
+- name: Wait...
+  pause:
+    seconds: 4
+
+- name: Wait for SSH on the new IP (without switching yet)
+  ansible.builtin.wait_for:
+    host: "{{ node_ip }}"
+    port: "{{ ansible_port | default(22) }}"
+    delay: 1
+    sleep: 2
+    timeout: 180
+  delegate_to: localhost
+  throttle: 1
+
+- name: Switch ansible_host to the new IP
+  ansible.builtin.set_fact:
+    ansible_host: "{{ node_ip }}"
+
+- name: Restart networking in background
+  ansible.builtin.systemd:
+    name: networking
+    state: restarted
+    daemon_reload: true
