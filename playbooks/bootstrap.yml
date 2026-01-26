@@ -1,0 +1,35 @@
+- name: Bootstrap
+  hosts: all
+  become: true
+  gather_facts: true
+  roles:
+    - role: common
+      tags: [patroni, network]
+    - role: network
+      tags: [patroni, network, skip]
+    - role: logging
+      tags: [monitoring, network, logging]
+    - role: redis
+      tags: [redis]
+    - role: sentinel
+      tags: [redis]
+    - role: etcd
+      tags: [patroni]
+    - role: patroni
+      tags: [patroni]
+    - role: keepalived
+      tags: [patroni, keepalived]
+    - role: haproxy
+      tags: [patroni, haproxy]
+    - role: pgbouncer
+      tags: [patroni, pgbouncer]
+    - role: angie
+      tags: [angie, keepalived]
+    - role: netbox
+      tags: [netbox]
+    - role: netdata
+      tags: [monitoring]
+    - role: exporters
+      tags: [monitoring, exporters]
+    - role: alloy
+      tags: [monitoring]
