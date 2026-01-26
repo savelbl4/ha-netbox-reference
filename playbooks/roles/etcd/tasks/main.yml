@@ -4,7 +4,7 @@
     cache_valid_time: 3600
 
 - name: Install etcd (includes etcdctl)
-  package:
+  ansible.builtin.package:
     name: "{{ item }}"
     state: present
   loop: [etcd-client, etcd-server, net-tools]
@@ -148,7 +148,7 @@
   delegate_to: "{{ groups['etcd'][0] }}"
   block:
     - name: Build endpoints list safely (no backrefs)
-      set_fact:
+      ansible.builtin.set_fact:
         etcd_endpoints_joined: >-
           {{ groups['etcd']
              | map('extract', hostvars, 'node_ip')
