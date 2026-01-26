@@ -56,7 +56,13 @@
     # это попадёт в haproxy.cfg
     - name: Build pg_nodes
       ansible.builtin.set_fact:
-        haproxy_pg_nodes: "{{ (haproxy_pg_nodes | default([])) + [{'name': item, 'ip': node_ip}] }}"
+        haproxy_pg_nodes: |
+          {{ (haproxy_pg_nodes | default([])) +
+            [{
+              'name': item,
+              'ip': hostvars[item].node_ip
+            }]
+          }}
       loop: "{{ groups['netbox'] | default([]) }}"
 
 - name: Deploy haproxy.cfg
