@@ -1,0 +1,104 @@
+import sys
+import os as _os
+import logging
+{#from distutils.util import strtobool#}
+
+{## базовая настройка логов (stdout)#}
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)],
+)
+
+sys.path.insert(0, '{{ netbox_plugins_dir }}')
+
+SECRET_KEY = "{{ netbox_secret_key }}"
+ALLOWED_HOSTS = {{ netbox_allowed_hosts | to_nice_json }}
+
+DATABASE = {
+    "NAME": "{{ netbox_db_name }}",
+    "USER": "{{ netbox_db_user }}",
+    "PASSWORD": "{{ netbox_db_password }}",
+    "HOST": "{{ vip_address }}",
+    "PORT": {{ pgb_listen_port }},
+    "CONN_MAX_AGE": 0,
+    "DISABLE_SERVER_SIDE_CURSORS": True,
+}
+
+# Allow overriding DB port for admin tasks (migrations) via env var
+_db_override_port = _os.getenv("NETBOX_DB_PORT")
+if _db_override_port:
+    DATABASE["PORT"] = {{ pg_port }}
+
+REDIS = {
+    "tasks": {
+        "HOST": "{{ vip_address }}",
+        "PORT": {{ redis_port }},
+        "PASSWORD": "{{ redis_password }}",
+        "SSL": False,
+        "DATABASE": 0,
+    },
+    "caching": {
+        "HOST": "{{ vip_address }}",
+        "PORT": {{ redis_port }},
+        "PASSWORD": "{{ redis_password }}",
+        "SSL": False,
+        "DATABASE": 1,
+    },
+}
+PLUGINS = {{ netbox_plugins | to_nice_json }}
+PLUGINS_CONFIG = {
+}
+RESTRICT_API_SCRIPTS = False
+DEBUG = False
+DEVELOPER = True
+ADMINS = []
+ALLOW_TOKEN_RETRIEVAL = False
+AUTH_PASSWORD_VALIDATORS = []
+BASE_PATH = ''
+CORS_ORIGIN_ALLOW_ALL = False
+CORS_ORIGIN_WHITELIST = []
+CORS_ORIGIN_REGEX_WHITELIST = []
+CSRF_COOKIE_NAME = 'csrftoken'
+DEFAULT_LANGUAGE = 'en-us'
+LANGUAGE_CODE = 'en-us'
+EMAIL = {
+    'SERVER': 'localhost',
+    'PORT': 25,
+    'USERNAME': '',
+    'PASSWORD': '',
+    'USE_SSL': False,
+    'USE_TLS': False,
+    'TIMEOUT': 10,  # seconds
+    'FROM_EMAIL': '',
+}
+EXEMPT_VIEW_PERMISSIONS = []
+INTERNAL_IPS = ('127.0.0.1', '::1')
+LOGGING = {}
+LOGIN_PERSISTENCE = False
+LOGIN_REQUIRED = True
+LOGIN_TIMEOUT = None
+LOGOUT_REDIRECT_URL = 'home'
+METRICS_ENABLED = True
+REMOTE_AUTH_ENABLED = False
+{# включать авторизацию по ldap #}
+{% if (ldap_backend.active | default(false) | bool) %}
+REMOTE_AUTH_BACKEND = 'netbox.authentication.LDAPBackend'
+{% endif %}
+REMOTE_AUTH_HEADER = 'HTTP_REMOTE_USER'
+REMOTE_AUTH_USER_FIRST_NAME = 'HTTP_REMOTE_USER_FIRST_NAME'
+REMOTE_AUTH_USER_LAST_NAME = 'HTTP_REMOTE_USER_LAST_NAME'
+REMOTE_AUTH_USER_EMAIL = 'HTTP_REMOTE_USER_EMAIL'
+REMOTE_AUTH_AUTO_CREATE_USER = True
+REMOTE_AUTH_DEFAULT_GROUPS = []
+REMOTE_AUTH_DEFAULT_PERMISSIONS = {}
+RELEASE_CHECK_URL = None
+RQ_DEFAULT_TIMEOUT = 300
+SCRIPTS_ROOT = '{{ netbox_scripts_dir }}'
+SCRIPTS_COMMIT_DEFAULT = True
+SESSION_COOKIE_NAME = 'sessionid'
+SESSION_FILE_PATH = None
+TIME_ZONE = 'Europe/Moscow'
+API_TOKEN_PEPPERS = [
+    '{{ netbox_peppers }}'
+]

@@ -1,0 +1,33 @@
+#!/bin/bash
+# Скрипт для синхронизации с проверкой IP
+
+TARGET_IP="{{ out_ip }}"
+LOG_FILE="/var/log/netbox_sync.log"
+DEST_DIR="/opt/netbox/netbox/"
+
+MEDIA_DIR="{{ netbox_media_dir }}"
+PLUGINS_DIR="{{ netbox_plugins_dir }}"
+
+# Проверяем, что целевой IP не является локальным
+if ip addr show | grep -q "inet $TARGET_IP/"; then
+    echo "$(date): IP $TARGET_IP принадлежит локальному хосту"
+    exit 0
+fi
+
+# Проверяем доступность целевого хоста
+if ! ping -c 1 -W 1 "$TARGET_IP" > /dev/null 2>&1; then
+    echo "$(date): Хост $TARGET_IP недоступен" >> "$LOG_FILE"
+    exit 1
+fi
+
+# Выполняем синхронизацию
+echo "$(date): Начало синхронизации с $TARGET_IP"
+rsync -aAXH --delete --numeric-ids -e "ssh -o StrictHostKeyChecking=no" root@$TARGET_IP:$MEDIA_DIR $DEST_DIR &&\
+rsync -aAXH --delete --numeric-ids -e "ssh -o StrictHostKeyChecking=no" root@$TARGET_IP:$PLUGINS_DIR $DEST_DIR
+
+if [ $? -eq 0 ]; then
+    echo "$(date): Синхронизация успешно завершена"
+else
+    echo "$(date): Ошибка синхронизации (код: $?)" >> "$LOG_FILE"
+    exit 1
+fi

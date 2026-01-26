@@ -5,7 +5,7 @@
     - role: common
       tags: [always]
     - role: network
-      tags: [patroni, network, skip]
+      tags: [patroni, network]
     - role: logging
       tags: [monitoring, network, logging]
     - role: redis
@@ -27,8 +27,8 @@
     - role: netbox
       tags: [netbox]
     - role: netdata
-      tags: [monitoring]
+      tags: [monitoring, skip]
     - role: exporters
-      tags: [monitoring, exporters]
+      tags: [monitoring, exporters, skip]
     - role: alloy
-      tags: [monitoring]
+      tags: [monitoring, skip]

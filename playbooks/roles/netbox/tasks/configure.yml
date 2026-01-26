@@ -1,0 +1,131 @@
+- name: Stop netbox
+  service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  failed_when: false
+  loop:
+    - netbox
+    - netbox-rq
+
+- name: Check base dir
+  ansible.builtin.stat:
+    path: "{{ netbox_base_dir }}"
+  register: netbox_dir_stat
+
+- name: Change owner
+  ansible.builtin.file:
+    path: "{{ netbox_base_dir }}"
+    owner: "netbox"
+    group: "netbox"
+    recurse: true
+  when:
+    - netbox_dir_stat.stat.exists
+    - netbox_dir_stat.stat.isdir
+
+- name: Copy example config if missing
+  ansible.builtin.copy:
+    src: "{{ netbox_base_dir }}/netbox/netbox/configuration_example.py"
+    dest: "{{ netbox_base_dir }}/netbox/netbox/configuration.py"
+    remote_src: true
+    force: false
+
+- name: Render configuration.py
+  ansible.builtin.template:
+    src: configuration.py.j2
+    dest: "{{ netbox_base_dir }}/netbox/netbox/configuration.py"
+    owner: "{{ netbox_user }}"
+    group: "{{ netbox_group }}"
+    mode: "0640"
+
+- name: Render gunicorn.py
+  ansible.builtin.template:
+    src: gunicorn.py.j2
+    dest: "{{ netbox_base_dir }}/gunicorn.py"
+    owner: "{{ netbox_user }}"
+    group: "{{ netbox_group }}"
+    mode: "0644"
+
+# TODO включать только если надо
+- name: Render ldap_config.py
+  ansible.builtin.template:
+    src: ldap_config.py.j2
+    dest: "{{ netbox_base_dir }}/netbox/netbox/ldap_config.py"
+    owner: "{{ netbox_user }}"
+    group: "{{ netbox_group }}"
+    mode: "0755"
+  when: ldap_backend.active | default(false)
+
+- name: Check extra requirements file
+  ansible.builtin.stat:
+    path: "{{ netbox_extra_requirements_file }}"
+  register: netbox_extra_reqs
+
+- name: Install extra requirements into venv
+  ansible.builtin.pip:
+    requirements: "{{ netbox_extra_requirements_file }}"
+    virtualenv: "{{ netbox_venv }}"
+  when: netbox_extra_reqs.stat.exists
+
+- name: Install NetBox plugins into venv
+  ansible.builtin.pip:
+    name: "{{ netbox_plugins_pip }}"
+    virtualenv: "{{ netbox_venv }}"
+  when: netbox_plugins_pip | length > 0
+
+- name: Show migrations for app core
+  ansible.builtin.command:
+    cmd: "{{ netbox_venv }}/bin/python3 netbox/manage.py showmigrations core --list"
+    chdir: "{{ netbox_base_dir }}"
+  register: netbox_core_migs
+  changed_when: false
+
+- name: Make DB migrations
+  ansible.builtin.command:
+    cmd: "{{ netbox_venv }}/bin/python3 netbox/manage.py makemigrations"
+    chdir: "{{ netbox_base_dir }}"
+
+- name: Apply DB migrations (direct to PostgreSQL, not via PgBouncer)
+  ansible.builtin.command:
+    cmd: "{{ netbox_venv }}/bin/python3 netbox/manage.py migrate"
+    chdir: "{{ netbox_base_dir }}"
+  environment:
+    NETBOX_DB_PORT: "{{ pg_port }}"
+  throttle: 1
+
+- name: Collect static files
+  ansible.builtin.command:
+    cmd: "{{ netbox_venv }}/bin/python3 netbox/manage.py collectstatic --no-input"
+    chdir: "{{ netbox_base_dir }}"
+
+- name: Django check (plugins/imports)
+  ansible.builtin.command:
+    cmd: "{{ netbox_venv }}/bin/python3 netbox/manage.py check --deploy"
+    chdir: "{{ netbox_base_dir }}"
+  changed_when: false
+
+- name: Create superuser (debug)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    {{ netbox_venv }}/bin/python3 netbox/manage.py shell <<'PY'
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    u = "{{ netbox_superuser.username }}"
+    if User.objects.filter(username=u).exists():
+        print("EXISTS")
+    else:
+        User.objects.create_superuser(
+            "{{ netbox_superuser.username }}",
+            "{{ netbox_superuser.email }}",
+            "{{ netbox_superuser.password }}"
+        )
+        print("CREATED")
+    PY
+  args:
+    chdir: "{{ netbox_base_dir }}"
+    executable: /bin/bash
+  register: netbox_su_out
+  run_once: true
+  changed_when:
+    - netbox_su_out.stdout_lines[-1] == "CREATED"
+  delegate_to: "{{ groups['netbox'][0] }}"

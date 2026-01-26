@@ -1,0 +1,18 @@
+[Unit]
+Description=NetBox WSGI Service
+After=network.target
+
+
+[Service]
+Type=simple
+User={{ netbox_user }}
+Group={{ netbox_group }}
+WorkingDirectory={{ netbox_base_dir }}
+Environment="PYTHONUNBUFFERED=1"
+ExecStart={{ netbox_venv }}/bin/gunicorn --config {{ netbox_base_dir }}/gunicorn.py netbox.wsgi
+{#Environment="GUNICORN_CMD_ARGS=--access-logfile - --access-logformat '%(h)s %(t)s %(m)s %(U)s%(q)s %(s)s %(B)s \"%(f)s\" \"%(a)s\"' --forwarded-allow-ips=*"#}
+Restart=on-failure
+
+
+[Install]
+WantedBy=multi-user.target

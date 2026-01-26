@@ -1,0 +1,47 @@
+netbox_version: "v4.5.1"  # pick any release tag, e.g. v4.3.5
+netbox_install_method: "archive"  # "git" or "archive"
+netbox_base_dir: "/opt/netbox"
+netbox_plugins_dir: "/opt/netbox/netbox/plugins"
+netbox_scripts_dir: "/opt/netbox/netbox/scripts"
+netbox_media_dir: "/opt/netbox/netbox/media"
+netbox_venv: "/opt/netbox/venv"
+netbox_user: "netbox"
+netbox_group: "netbox"
+netbox_system_user_shell: "/usr/sbin/nologin"
+
+
+# Secrets (CHANGE in production!)
+netbox_allowed_hosts: ["{{ FQDN }}", "{{ vip_address_2 }}", "127.0.0.1"]
+
+# Database
+netbox_db_name: "{{ netbox_user }}"
+netbox_db_user: "{{ netbox_group }}"
+netbox_db_password: "{{ pg_superuser_password }}"
+netbox_db_admin_host: "{{ vip_address }}"
+netbox_db_admin_user: "{{ pg_superuser }}"
+netbox_db_admin_delegate: "{{ vip_address }}"
+netbox_db_admin_password: "{{ netbox_db_password }}"
+
+netbox_extra_requirements_file: "/opt/netbox/requirements.txt"
+
+netbox_packages:
+  - rsync
+  - build-essential
+  - libldap2-dev
+  - libpq-dev
+  - libsasl2-dev
+  - libssl-dev
+  - postgresql-server-dev-all
+  - python3-dev
+
+netbox_plugins:
+  - netbox_reorder_rack
+  - netbox_interface_synchronization
+
+netbox_plugins_pip:
+  - netbox-interface-synchronization
+  - netbox-reorder-rack
+  - django-auth-ldap
+  - python-ldap
+  - python-dotenv
+  - pywinrm

@@ -1,0 +1,17 @@
+[Unit]
+Description=NetBox RQ Worker
+After=network.target
+
+
+[Service]
+Type=simple
+User={{ netbox_user }}
+Group={{ netbox_group }}
+WorkingDirectory={{ netbox_base_dir }}
+Environment="PYTHONUNBUFFERED=1"
+ExecStart={{ netbox_venv }}/bin/python3 {{ netbox_base_dir }}/netbox/manage.py rqworker
+Restart=on-failure
+
+
+[Install]
+WantedBy=multi-user.target
