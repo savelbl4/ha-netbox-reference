@@ -1,0 +1,35 @@
+- name: Ensure required packages
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+  loop: [curl, ca-certificates]
+
+- name: Detect Debian codename
+  ansible.builtin.shell: >
+    . /etc/os-release && echo "$ID/$VERSION_ID $VERSION_CODENAME"
+  args:
+    executable: /bin/bash
+  register: angie_debian_codename
+
+- name: Add angie apt key
+  ansible.builtin.get_url:
+    url: "https://angie.software/keys/angie-signing.gpg"
+    dest: "/etc/apt/trusted.gpg.d/"
+    mode: '0644'
+    force: true
+
+- name: Add angie repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/angie.list
+    content: >
+      deb https://download.angie.software/angie/{{ angie_debian_codename.stdout }} main
+    mode: '0644'
+
+- name: Apt update
+  ansible.builtin.apt:
+    update_cache: true
+
+- name: Install Angie
+  ansible.builtin.apt:
+    name: angie
+    state: present

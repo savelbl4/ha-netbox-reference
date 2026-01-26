@@ -2,6 +2,13 @@
   ansible.builtin.systemd:
     daemon_reload: true
 
+- name: Restart Angie
+  ansible.builtin.systemd:
+    name: angie
+    state: restarted
+    enabled: true
+    daemon_reload: true
+
 - name: Restart etcd
   ansible.builtin.systemd:
     name: etcd-patroni

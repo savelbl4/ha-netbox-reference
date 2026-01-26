@@ -1,0 +1,65 @@
+- name: Enable ip_nonlocal_bind for VIP
+  ansible.builtin.sysctl:
+    name: net.ipv4.ip_nonlocal_bind
+    value: "1"
+    state: present
+    reload: true
+
+- name: Copy cert
+  ansible.builtin.copy:
+    src: "{{ angie_cert_filename }}"
+    dest: "{{ angie_cert_path }}"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Copy key
+  ansible.builtin.copy:
+    src: "{{ angie_key_filename }}"
+    dest: "{{ angie_key_path }}"
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Deploy angie.conf
+  ansible.builtin.template:
+    src: angie.conf.j2
+    dest: "{{ angie_main_conf }}"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Angie
+
+- name: Stat path (dir or file?)
+  ansible.builtin.stat:
+    path: "{{ angie_http_conf }}"
+  register: angie_http_conf_stat
+
+- name: Pick directory to clean
+  ansible.builtin.set_fact:
+    angie_clean_dir: >-
+      {{ angie_http_conf if (angie_http_conf_stat.stat.isdir | default(false))
+         else (angie_http_conf | dirname) }}
+
+- name: Find contents to delete
+  ansible.builtin.find:
+    paths: "{{ angie_clean_dir }}"
+    file_type: any
+    hidden: true
+  register: angie_to_delete
+
+- name: Delete contents
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ angie_to_delete.files }}"
+  notify: Restart Angie
+
+- name: Deploy http_default.conf
+  ansible.builtin.template:
+    src: http_netbox.conf.j2
+    dest: "{{ angie_http_path }}/netbox.conf"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Restart Angie
