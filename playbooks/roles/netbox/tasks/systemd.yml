@@ -1,0 +1,24 @@
+- name: Render netbox.service
+  ansible.builtin.template:
+    src: netbox.service.j2
+    dest: /etc/systemd/system/netbox.service
+    mode: "0644"
+
+- name: Render netbox-rq.service
+  ansible.builtin.template:
+    src: netbox-rq.service.j2
+    dest: /etc/systemd/system/netbox-rq.service
+    mode: "0644"
+
+- name: Reload systemd
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Enable & start services
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: started
+    enabled: true
+  loop:
+    - netbox
+    - netbox-rq

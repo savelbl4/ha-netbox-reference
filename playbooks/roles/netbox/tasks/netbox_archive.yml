@@ -1,0 +1,39 @@
+- name: Ensure curl & unzip
+  ansible.builtin.apt:
+    name: [curl, unzip]
+    state: present
+
+- name: Download release archive
+  ansible.builtin.get_url:
+    url: "https://github.com/netbox-community/netbox/archive/refs/tags/{{ netbox_version }}.zip"
+    dest: "/tmp/netbox-{{ netbox_version }}.zip"
+    mode: "0644"
+
+- name: Unpack release
+  ansible.builtin.unarchive:
+    src: "/tmp/netbox-{{ netbox_version }}.zip"
+    dest: "/opt"
+    remote_src: true
+
+- name: Sync to {{ netbox_base_dir }}
+  ansible.builtin.copy:
+    src: "/opt/netbox-{{ netbox_version | regex_replace('^v', '') }}/"
+    dest: "{{ netbox_base_dir }}/"
+    owner: "{{ netbox_user }}"
+    group: "{{ netbox_group }}"
+    mode: "u=rwX,g=rX,o=rX"
+    remote_src: true
+
+- name: Create venv
+  ansible.builtin.command:
+    cmd: python3 -m venv "{{ netbox_venv }}"
+    creates: "{{ netbox_venv }}/bin/activate"
+
+- name: Upgrade pip/setuptools/wheel
+  ansible.builtin.command:
+    cmd: "{{ netbox_venv }}/bin/pip install --upgrade pip setuptools wheel"
+
+- name: Install NetBox Python deps
+  ansible.builtin.command:
+    cmd: "{{ netbox_venv }}/bin/pip install -r requirements.txt"
+    chdir: "{{ netbox_base_dir }}"

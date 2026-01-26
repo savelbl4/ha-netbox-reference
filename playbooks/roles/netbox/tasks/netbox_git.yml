@@ -1,0 +1,26 @@
+- name: Install git
+  ansible.builtin.apt:
+    name: git
+    state: present
+
+- name: Clone NetBox repo (shallow)
+  ansible.builtin.git:
+    repo: https://github.com/netbox-community/netbox.git
+    dest: "{{ netbox_base_dir }}"
+    version: "{{ netbox_version }}"
+    depth: 1
+    force: true
+
+- name: Create venv
+  ansible.builtin.command:
+    cmd: python3 -m venv "{{ netbox_venv }}"
+    creates: "{{ netbox_venv }}/bin/activate"
+
+- name: Upgrade pip/setuptools/wheel
+  ansible.builtin.command:
+    cmd: "{{ netbox_venv }}/bin/pip install --upgrade pip setuptools wheel"
+
+- name: Install NetBox Python deps
+  ansible.builtin.command:
+    cmd: "{{ netbox_venv }}/bin/pip install -r requirements.txt"
+    chdir: "{{ netbox_base_dir }}"
