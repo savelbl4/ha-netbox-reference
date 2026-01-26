@@ -1,0 +1,50 @@
+- name: Install keepalived and curl
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+  loop: [keepalived, curl]
+
+- name: Stop keepalived
+  ansible.builtin.service:
+    name: keepalived
+    state: stopped
+    enabled: false
+  failed_when: false
+
+- name: Deploy Angie Netbox master check script
+  ansible.builtin.template:
+    src: check_angie_netbox.sh.j2
+    dest: /usr/local/bin/check_angie_netbox.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Deploy Patroni master check script
+  ansible.builtin.template:
+    src: patroni_is_master.sh.j2
+    dest: /usr/local/bin/patroni_is_master.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Deploy haproxy check script
+  ansible.builtin.template:
+    src: check_haproxy.sh.j2
+    dest: /usr/local/bin/check_haproxy.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Deploy keepalived.conf
+  ansible.builtin.template:
+    src: keepalived.conf.j2
+    dest: /etc/keepalived/keepalived.conf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Enable & start keepalived
+  ansible.builtin.service:
+    name: keepalived
+    state: started
+    enabled: true

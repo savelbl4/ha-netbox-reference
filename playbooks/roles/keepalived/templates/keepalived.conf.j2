@@ -1,0 +1,73 @@
+vrrp_script chk_master {
+    script "/usr/local/bin/patroni_is_master.sh"
+    interval 1
+    timeout 1
+    fall 2
+    rise 1
+}
+
+vrrp_script chk_haproxy {
+    script "/usr/local/bin/check_haproxy.sh"
+    interval 1
+    timeout 1
+    fall 2
+    rise 1
+}
+
+vrrp_script chk_netbox {
+    script "/usr/local/bin/check_angie_netbox.sh"
+    interval 1
+    timeout 1
+    fall 2
+    rise 1
+}
+
+vrrp_instance VI_PG_VIP {
+    state BACKUP
+    interface {{ keepalived_interface }}
+    virtual_router_id {{ vrrp_router_id }}
+{% set idx = (groups['netbox'] | list).index(inventory_hostname) %}
+    priority {{ 200 - (idx * 10) }}
+{#    priority 100#}
+    advert_int {{ vrrp_advert_int }}
+{% if vrrp_nopreempt %}    nopreempt{% endif %}
+
+    authentication {
+        auth_type PASS
+        auth_pass {{ vrrp_auth_pass }}
+    }
+
+    track_script {
+        chk_haproxy
+{#        chk_master#}
+    }
+
+    virtual_ipaddress {
+        {{ vip_cidr }} dev {{ keepalived_interface }} label {{ keepalived_interface }}:vip{{ vrrp_router_id }}
+    }
+}
+
+{## VIP №2 — тут доступен вэб#}
+{% if setup_nb_vip %}
+vrrp_instance VI_NB_VIP {
+    state BACKUP
+    interface {{ keepalived_interface }}
+    virtual_router_id {{ vrrp_router_id_2 }}
+{% set idx = (groups['netbox'] | list).index(inventory_hostname) %}
+    priority {{ 200 - (idx * 10) }}
+    advert_int {{ vrrp_advert_int }}
+
+    authentication {
+        auth_type PASS
+        auth_pass {{ vrrp_auth_pass }}
+    }
+
+    track_script {
+        chk_netbox weight -150
+    }
+
+    virtual_ipaddress {
+        {{ vip_cidr_2 }} dev {{ keepalived_interface }} label {{ keepalived_interface }}:vip{{ vrrp_router_id_2 }}
+    }
+}
+{% endif %}

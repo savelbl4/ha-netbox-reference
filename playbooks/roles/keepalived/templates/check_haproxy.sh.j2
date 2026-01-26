@@ -1,0 +1,7 @@
+#!/bin/bash
+{## Возвращаем 0, если процесс haproxy жив и слушает 5432#}
+if pgrep -x haproxy >/dev/null 2>&1 && ss -ltn "( sport = :{{ postgres_port }} )" | grep -q LISTEN; then
+  exit 0
+else
+  exit 1
+fi

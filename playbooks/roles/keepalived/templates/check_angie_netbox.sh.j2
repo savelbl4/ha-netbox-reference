@@ -1,0 +1,18 @@
+#!/bin/bash
+{## Возвращаем 0, если процесс haproxy жив и слушает 5432#}
+{##}
+{#CODE_ANGIE=$(curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:80/p8s)#}
+{#CODE_NETBOX=$(curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8001/metrics)#}
+{##}
+{#angie#}
+{#gunicorn#}
+{##}
+if pgrep -x angie >/dev/null 2>&1 && ss -ltn "( sport = :{{ angie_listen_port }} )" | grep -q LISTEN; then
+  if pgrep -x gunicorn >/dev/null 2>&1 && ss -ltn "( sport = :{{ gunicorn_listen_port }} )" | grep -q LISTEN; then
+    exit 0
+  else
+    exit 1
+  fi
+else
+  exit 1
+fi
