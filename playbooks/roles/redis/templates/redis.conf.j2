@@ -1,0 +1,19 @@
+port {{ redis_port }}
+bind {{ (redis_bind_list | default([redis_bind | default('0.0.0.0')])) | join(' ') }}
+protected-mode yes
+
+requirepass "{{ redis_password }}"
+masterauth "{{ redis_password }}"
+
+{% if inventory_hostname != redis_master_host %}
+replicaof {{ redis_master_ip }} {{ redis_port }}
+{% endif %}
+
+{## 👇 добавили явный data dir, чтоб не упираться в RO FS#}
+dir {{ redis_data_dir }}
+
+appendonly {{ redis_appendonly }}
+appendfsync {{ redis_appendfsync }}
+{% for rule in redis_save_rules %}
+save {{ rule }}
+{% endfor %}

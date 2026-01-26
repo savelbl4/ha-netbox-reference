@@ -1,0 +1,54 @@
+- name: Install redis
+  ansible.builtin.package:
+    name: redis
+    state: present
+
+- name: Ensure sysctl for redis
+  ansible.posix.sysctl:
+    name: "{{ item.key }}"
+    value: "{{ item.value }}"
+    state: present
+    sysctl_set: true
+    reload: true
+  loop: "{{ redis_sysctl | dict2items }}"
+  when: redis_sysctl is defined
+
+- name: Gather services
+  ansible.builtin.service_facts:
+
+- name: Stop redis-sentinel if present
+  ansible.builtin.systemd:
+    name: redis-sentinel
+    state: stopped
+    enabled: false
+  when: "'redis-sentinel.service' in ansible_facts.services"
+
+- name: Stop redis-server if present
+  ansible.builtin.systemd:
+    name: redis-server
+    state: stopped
+    enabled: false
+  when: "'redis-server.service' in ansible_facts.services"
+
+- name: Ensure redis data dir exists with proper perms
+  ansible.builtin.file:
+    path: "{{ redis_data_dir }}"
+    state: directory
+    owner: redis
+    group: redis
+    mode: '0750'
+
+- name: Deploy redis.conf
+  ansible.builtin.template:
+    src: redis.conf.j2
+    dest: /etc/redis/redis.conf
+    owner: redis
+    group: redis
+    mode: '0644'
+
+- name: Enable & start redis
+  ansible.builtin.systemd:
+    name: redis-server
+    state: started
+    enabled: true
+    daemon_reload: true
