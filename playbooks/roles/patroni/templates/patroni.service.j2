@@ -1,0 +1,22 @@
+[Unit]
+Description=Patroni service for PostgreSQL HA
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=postgres
+Group=postgres
+{% if patroni_use_venv | bool %}
+Environment=PATH={{ patroni_venv_dir }}/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart={{ patroni_venv_dir }}/bin/patroni /etc/patroni/patroni.yml
+{% else %}
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/usr/bin/patroni /etc/patroni/patroni.yml
+{% endif %}
+Restart=on-failure
+RestartSec=5s
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,79 @@
+# Patroni config rendered by Ansible
+scope: "{{ patroni_scope }}"
+namespace: "{{ patroni_namespace }}"
+name: "{{ inventory_hostname }}"
+
+restapi:
+  listen: "0.0.0.0:{{ patroni_rest_port }}"
+  connect_address: "{{ hostvars[inventory_hostname].node_ip }}:{{ patroni_rest_port }}"
+
+# Etcd v3 DCS
+etcd3:
+  hosts: "{{ dcs_endpoints | map('regex_replace', '^https?://', '') | join(',') }}"
+
+bootstrap:
+  dcs:
+    ttl: 30
+    loop_wait: 10
+    retry_timeout: 10
+    synchronous_mode: {{ patroni_synchronous_mode | bool }}
+    synchronous_node_count: {{ patroni_synchronous_node_count | default(1) }}
+    synchronous_mode_strict: {{ patroni_synchronous_mode_strict | default(false) | bool }}
+    postgresql:
+      use_pg_rewind: true
+      parameters:
+        max_connections: {{ pg_max_connections }}
+        shared_buffers: "{{ pg_shared_buffers }}"
+        effective_cache_size: "{{ pg_effective_cache_size }}"
+        maintenance_work_mem: "{{ pg_maintenance_work_mem }}"
+        wal_level: "logical"
+        max_replication_slots: {{ pg_max_replication_slots }}
+        max_wal_senders: {{ pg_max_wal_senders }}
+        max_logical_replication_workers: {{ pg_max_logical_workers | default(8) }}
+        max_worker_processes: {{ pg_max_worker_processes | default(16) }}
+        wal_compression: "on"
+        max_slot_wal_keep_size: "{{ pg_max_slot_wal_keep_size | default('32GB') }}"
+        wal_keep_size: "{{ pg_wal_keep_size }}"
+        hot_standby: "on"
+  initdb:
+    - encoding: "UTF8"
+    - data-checksums
+  users:
+    {{ replication_user }}:
+      password: "{{ replication_password }}"
+      options:
+        - replication
+    {{ pg_superuser }}:
+      password: "{{ pg_superuser_password }}"
+  pg_hba:
+    - "local all all peer"
+    - "host all all 127.0.0.1/32 md5"
+    - "host all all ::1/128 md5"
+    - "host replication {{ replication_user }} 127.0.0.1/32 md5"
+    - "host replication {{ replication_user }} ::1/128 md5"
+    - "host replication {{ replication_user }} {{ cluster_subnet }} md5"
+    - "host all all 127.0.0.1/32 md5"
+    - "host all all ::1/128 md5"
+    - "host all all {{ cluster_subnet }} md5"
+    - "host all all {{ allowed_client_subnets[0] | default('172.16.0.128/25') }} md5"
+
+postgresql:
+  listen: "{{ hostvars[inventory_hostname].node_ip }}:{{ pg_port }}"
+  connect_address: "{{ hostvars[inventory_hostname].node_ip }}:{{ pg_port }}"
+  data_dir: "{{ patroni_data_dir }}"
+  bin_dir: "/usr/lib/postgresql/{{ pg_version }}/bin"
+  authentication:
+    superuser:
+      username: "{{ pg_superuser }}"
+      password: "{{ pg_superuser_password }}"
+    replication:
+      username: "{{ replication_user }}"
+      password: "{{ replication_password }}"
+  parameters:
+    unix_socket_directories: "/var/run/postgresql"
+
+tags:
+  nofailover: {{ (hostvars[inventory_hostname].nofailover | default(false)) | bool }}
+  nosync: {{ (hostvars[inventory_hostname].nosync | default(false)) | bool }}
+  noloadbalance: false
+  clonefrom: false

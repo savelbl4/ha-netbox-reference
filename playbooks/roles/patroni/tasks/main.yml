@@ -1,0 +1,129 @@
+---
+- name: Ensure required packages for APT repositories are present
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+    update_cache: true
+  loop:
+    - ca-certificates
+    - curl
+    - gnupg
+    - lsb-release
+    - python3-venv
+    - python3-pip
+
+- name: Detect Debian codename
+  ansible.builtin.shell: >
+    . /etc/os-release && echo "$VERSION_CODENAME"
+  args:
+    executable: /bin/bash
+  register: patroni_debian_codename
+
+- name: Add PGDG apt key (signed-by)
+  ansible.builtin.get_url:
+    url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+    dest: /usr/share/keyrings/postgresql.asc
+    mode: '0644'
+
+- name: Add PGDG repository
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/pgdg.list
+    content: >
+      deb [signed-by=/usr/share/keyrings/postgresql.asc]
+      http://apt.postgresql.org/pub/repos/apt {{ patroni_debian_codename.stdout }}-pgdg main
+    mode: '0644'
+
+- name: Apt update
+  ansible.builtin.apt:
+    update_cache: true
+
+- name: Disable auto-creation of default PostgreSQL cluster
+  ansible.builtin.lineinfile:
+    path: /etc/postgresql-common/createcluster.conf
+    regexp: '^create_main_cluster\s*='
+    line: 'create_main_cluster = false'
+    create: true
+    mode: '0644'
+
+- name: Install PostgreSQL + Patroni + helpers
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+    update_cache: true
+  loop:
+    - postgresql-{{ pg_version }}
+    - postgresql-client-{{ pg_version }}
+    - postgresql-common
+    - python3-psycopg2
+    - patroni
+    - python3-etcd
+    - python3-etcd3
+    - python3-etcd3gw
+
+# Optional venv with Patroni extras (robust DCS support)
+- name: Ensure Patroni venv exists
+  command: "python3 -m venv {{ patroni_venv_dir }}"
+  args:
+    creates: "{{ patroni_venv_dir }}/bin/activate"
+  when: patroni_use_venv | bool
+
+- name: Upgrade pip in venv
+  command: "{{ patroni_venv_dir }}/bin/pip install --upgrade pip"
+  when: patroni_use_venv | bool
+
+- name: Install Patroni with etcd3 + psycopg in venv
+  command: "{{ patroni_venv_dir }}/bin/pip install 'patroni[etcd3,psycopg2-binary]'"
+  when: patroni_use_venv | bool
+
+- name: Drop default cluster if exists (idempotent; only for bootstrap path)
+  shell: |
+    set -e
+    if pg_lsclusters | awk '$1=="{{ pg_version }}" && $2=="main"{print}' | grep -q . ; then
+      pg_dropcluster --stop {{ pg_version }} main
+    fi
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Create Patroni dirs
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: '0755'
+  loop:
+    - /etc/patroni
+    - "{{ patroni_data_dir }}"
+    - /var/log/patroni
+
+- name: Render Patroni configuration
+  ansible.builtin.template:
+    src: patroni.yml.j2
+    dest: /etc/patroni/patroni.yml
+    mode: '0644'
+
+- name: Install systemd unit for Patroni
+  ansible.builtin.template:
+    src: patroni.service.j2
+    dest: /etc/systemd/system/patroni.service
+    mode: '0644'
+  notify: Reload systemd
+
+- name: Ensure permissions on data directory
+  ansible.builtin.file:
+    path: "{{ patroni_data_dir }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: '0700'
+
+# Start only when explicit start requested (bootstrap plays)
+- name: Start/Enable Patroni if requested
+  ansible.builtin.systemd:
+    name: patroni
+    enabled: true
+    state: started
+    daemon_reload: true
+  throttle: 1
+  when: start_patroni | default(false)
