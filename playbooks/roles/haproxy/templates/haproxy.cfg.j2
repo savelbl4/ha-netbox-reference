@@ -1,0 +1,155 @@
+global
+    stats socket /run/haproxy/admin.sock mode 660 level admin
+    log /dev/log local0
+    log /dev/log local1 notice
+    maxconn {{ haproxy_maxconn }}
+    daemon
+
+defaults
+    log     global
+    mode    tcp
+    option  tcplog
+    timeout connect 5s
+    timeout client  30s
+    timeout server  30s
+
+{## ---------- WRITE (лидер) ----------#}
+frontend pg_write
+    bind {{ vip_address }}:{{ postgres_port }}
+    default_backend pg_bkwrite
+
+backend pg_bkwrite
+    mode tcp
+    balance first
+    option tcp-check
+{##    Проверяем Patroni на этой ноде#}
+    tcp-check connect port {{ patroni_rest_port }}
+    tcp-check send "GET /master HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+    tcp-check expect rstring ^HTTP/1\.[01]\ 200\ OK
+{##    Проверяем, что postgres-порт реально открывается#}
+    tcp-check connect port {{ postgres_port }}
+{##    Более агрессивные таймауты для фейловера#}
+    timeout connect 3s
+    timeout server  30s
+
+    default-server inter {{ haproxy_inter }} fall {{ haproxy_fall }} rise {{ haproxy_rise }} maxconn {{ haproxy_server_maxconn }}
+{% if (haproxy_pg_nodes | default(false) | bool) %}
+{% for n in haproxy_pg_nodes %}
+    server {{ n.name }} {{ n.ip }}:{{ postgres_port }} check on-marked-down shutdown-sessions
+{% endfor %}
+{% endif %}
+
+{## ---------- READ (реплики) ----------#}
+frontend pg_read
+    bind {{ vip_address }}:{{ haproxy_read_port }}
+    default_backend pg_bkread
+
+backend pg_bkread
+    mode tcp
+    balance roundrobin
+    option tcp-check
+{##    Проверяем Patroni на этой ноде#}
+    tcp-check connect port {{ patroni_rest_port }}
+    tcp-check send "GET /replica HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+    tcp-check expect rstring ^HTTP/1\.[01]\ 200\ OK
+{##    Проверяем, что postgres-порт реально открывается#}
+    tcp-check connect port {{ postgres_port }}
+{##    Более агрессивные таймауты для фейловера#}
+    timeout connect 3s
+    timeout server  30s
+
+    default-server inter {{ haproxy_inter }} fall {{ haproxy_fall }} rise {{ haproxy_rise }} maxconn {{ haproxy_server_maxconn }}
+{% if (haproxy_pg_nodes | default(false) | bool) %}
+{% for n in haproxy_pg_nodes %}
+    server {{ n.name }} {{ n.ip }}:{{ postgres_port }} check on-marked-down shutdown-sessions
+{% endfor %}
+{% endif %}
+
+{% if haproxy_redis_enabled and (vip_candidate | default(false) | bool) %}
+{## --- Redis over VIP ---#}
+frontend fe_redis
+    bind {{ vip_address }}:{{ haproxy_redis_front_port }}
+    mode tcp
+    default_backend be_redis_master
+
+backend be_redis_master
+    mode tcp
+    option tcp-check
+    timeout connect 3s
+    timeout server  30s
+    timeout check   1s
+
+{#  # Быстрая конвергенция после фейловера:#}
+    default-server inter 1000ms fastinter 200ms downinter 500ms rise 1 fall 1
+{#  # Последовательность проверки: AUTH -> PING -> ROLE -> QUIT#}
+    tcp-check connect
+{% if haproxy_redis_check_user %}
+    tcp-check send AUTH\ {{ haproxy_redis_check_user }}\ {{ haproxy_redis_check_pass }}\r\n
+{% else %}
+    tcp-check send AUTH\ {{ haproxy_redis_check_pass }}\r\n
+{% endif %}
+    tcp-check expect string +OK
+    tcp-check send PING\r\n
+    tcp-check expect string +PONG
+    tcp-check send ROLE\r\n
+{#  # На некоторых сборках Redis 8 ответ ROLE может приходить кусочно — regex устойчивее:#}
+    tcp-check expect rstring \bmaster\b
+    tcp-check send QUIT\r\n
+    tcp-check expect string +OK
+
+{% for h in groups['netbox'] %}
+{#  server {{ h }} {{ hostvars[h].node_ip }}:{{ redis_port }} check inter {{ haproxy_inter | default('1s') }} fall {{ haproxy_fall | default(2) }} rise {{ haproxy_rise | default(2) }}#}
+    server {{ h }} {{ hostvars[h].node_ip }}:{{ redis_port }} check
+{% endfor %}
+{% endif %}
+
+{## PgBouncer VIP#}
+frontend pgbouncer_vip
+    bind {{ vip_address }}:{{ pgb_listen_port }}
+    mode tcp
+    option tcplog
+    default_backend pgbouncer_nodes
+
+backend pgbouncer_nodes
+    mode tcp
+    balance roundrobin
+    option tcp-check
+    tcp-check connect port {{ pgb_listen_port }}
+    default-server inter 1s fall 2 rise 2 maxconn 500
+
+{# --- сервера --- #}
+{% for h in groups['netbox'] %}
+    server {{ h }} {{ hostvars[h].node_ip }}:{{ pgb_listen_port }} check
+{% endfor %}
+
+{# --- ACL: статус серверов (UP/DOWN) --- #}
+{% for h in groups['netbox'] %}
+    acl {{ h | replace('-', '_') }}_up  srv_is_up(pgbouncer_nodes/{{ h }})
+{% endfor %}
+
+{# --- ACL: откуда пришёл клиент (по src IP ноды) --- #}
+{% for h in groups['netbox'] %}
+    acl from_{{ h | replace('-', '_') }} src {{ hostvars[h].node_ip }}
+{% endfor %}
+{#Если есть вторые адреса (например, 172.16.x.x), добавьте их сюда через пробел:#}
+{#    acl from_{{ h | replace('-', '_') }} src {{ hostvars[h].node_ip }} {{ hostvars[h].second_ip | default('') }}#}
+
+{# --- 1) локальный сервер этого HAProxy --- #}
+{% set local_srv = inventory_hostname %}
+{% set local_acl = (inventory_hostname | replace('-', '_')) + '_up' %}
+    use-server {{ local_srv }} if {{ local_acl }}
+
+{# --- 2) сервер хоста клиента (если жив) --- #}
+{% for h in groups['netbox'] %}
+    use-server {{ h }} if from_{{ h | replace('-', '_') }} {{ h | replace('-', '_') }}_up
+{% endfor %}
+
+{# --- 3) иначе: fallback на balance roundrobin --- #}
+
+{## ---------- Статистика HAProxy ----------#}
+listen stats
+    bind 0.0.0.0:7000
+    mode http
+    stats enable
+    stats uri /haproxy?stats
+    stats refresh 5s

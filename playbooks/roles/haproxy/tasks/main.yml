@@ -1,0 +1,75 @@
+- name: Enable ip_nonlocal_bind for VIP
+  ansible.builtin.sysctl:
+    name: net.ipv4.ip_nonlocal_bind
+    value: "1"
+    state: present
+    reload: true
+
+- name: Install HAProxy (and some one else)
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+  loop: [haproxy, ncat, socat]
+
+- name: Gather services
+  ansible.builtin.service_facts:
+
+- name: Stop haproxy if present
+  ansible.builtin.systemd:
+    name: haproxy
+    state: stopped
+    enabled: false
+  when: "'haproxy.service' in ansible_facts.services"
+
+- name: Ensure systemd drop-in dir for haproxy
+  ansible.builtin.file:
+    path: /etc/systemd/system/haproxy.service.d
+    state: directory
+    mode: '0755'
+
+# Узлы БЕЗ keepalived
+- name: Drop-in without keepalived (non-candidates)
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/haproxy.service.d/override.conf
+    mode: '0644'
+    content: |
+      [Unit]
+      Requires=
+      Wants=
+      After=systemd-sysctl.service network-online.target
+  when: not (vip_candidate | default(false))
+
+# Узлы С keepalived (VIP-канд.)
+- name: Candidates
+  when: vip_candidate | default(false)
+  block:
+    - name: Drop-in with soft keepalived dep (VIP candidates)
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/haproxy.service.d/override.conf
+        mode: '0644'
+        content: |
+          [Unit]
+          Requires=
+          Wants=keepalived.service
+          After=systemd-sysctl.service network-online.target keepalived.service
+
+    # это попадёт в haproxy.cfg
+    - name: Build pg_nodes
+      ansible.builtin.set_fact:
+        haproxy_pg_nodes: "{{ (haproxy_pg_nodes | default([])) + [{'name': item, 'ip': node_ip}] }}"
+      loop: "{{ groups['netbox'] | default([]) }}"
+
+- name: Deploy haproxy.cfg
+  ansible.builtin.template:
+    src: haproxy.cfg.j2
+    dest: /etc/haproxy/haproxy.cfg
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Enable & start haproxy
+  ansible.builtin.systemd:
+    name: haproxy
+    enabled: true
+    state: started
+    daemon_reload: true
