@@ -33,7 +33,7 @@ backend pg_bkwrite
     timeout server  30s
 
     default-server inter {{ haproxy_inter }} fall {{ haproxy_fall }} rise {{ haproxy_rise }} maxconn {{ haproxy_server_maxconn }}
-{% if (haproxy_pg_nodes | default(false) | bool) %}
+{% if (haproxy_pg_nodes is defined and haproxy_pg_nodes | length > 0) %}
 {% for n in haproxy_pg_nodes %}
     server {{ n.name }} {{ n.ip }}:{{ postgres_port }} check on-marked-down shutdown-sessions
 {% endfor %}
@@ -59,7 +59,7 @@ backend pg_bkread
     timeout server  30s
 
     default-server inter {{ haproxy_inter }} fall {{ haproxy_fall }} rise {{ haproxy_rise }} maxconn {{ haproxy_server_maxconn }}
-{% if (haproxy_pg_nodes | default(false) | bool) %}
+{% if (haproxy_pg_nodes is defined and haproxy_pg_nodes | length > 0) %}
 {% for n in haproxy_pg_nodes %}
     server {{ n.name }} {{ n.ip }}:{{ postgres_port }} check on-marked-down shutdown-sessions
 {% endfor %}
