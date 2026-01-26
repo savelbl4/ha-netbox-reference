@@ -1,0 +1,33 @@
+- name: Deploy sentinel.conf
+  ansible.builtin.template:
+    src: sentinel.conf.j2
+    dest: /etc/redis/sentinel.conf
+    owner: redis
+    group: redis
+    mode: '0644'
+
+- name: Systemd unit for sentinel
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/redis-sentinel.service
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=Redis Sentinel
+      After=network.target
+
+      [Service]
+      User=redis
+      Group=redis
+      ExecStart=/usr/bin/redis-server /etc/redis/sentinel.conf --supervised systemd --sentinel
+      Restart=always
+      LimitNOFILE=10032
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Enable & start sentinel
+  ansible.builtin.systemd:
+    name: redis-sentinel
+    state: started
+    enabled: true
+    daemon_reload: true

@@ -1,0 +1,10 @@
+port {{ sentinel_port }}
+bind 0.0.0.0
+daemonize no
+protected-mode no
+
+sentinel monitor {{ sentinel_name }} {{ redis_master_ip }} {{ redis_port }} {{ sentinel_quorum }}
+sentinel auth-pass {{ sentinel_name }} {{ redis_password }}
+sentinel down-after-milliseconds {{ sentinel_name }} {{ sentinel_down_after_ms }}
+sentinel parallel-syncs {{ sentinel_name }} {{ sentinel_parallel_syncs }}
+sentinel failover-timeout {{ sentinel_name }} {{ sentinel_failover_timeout_ms }}
