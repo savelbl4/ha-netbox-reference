@@ -1,3 +1,15 @@
+- name: Install resolvconf
+  ansible.builtin.package:
+    name: resolvconf
+    state: present
+    update_cache: true
+
+- name: Enable resolvconf
+  ansible.builtin.systemd:
+    name: resolvconf
+    state: started
+    enabled: true
+
 - name: Hostname
   ansible.builtin.command: hostnamectl hostname "{{ inventory_hostname }}"
 

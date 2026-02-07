@@ -11,9 +11,19 @@ iface lo inet loopback
 генерируем адреса по порядку, в зависимости от выбранной сети
 #}
 {% set idx = (groups['netbox'] | list).index(inventory_hostname) %}
-allow-hotplug eth0
-iface eth0 inet static
+allow-hotplug {{ keepalived_interface }}
+iface {{ keepalived_interface }} inet static
     address {{ hostvars[inventory_hostname].node_ip }}
     netmask 255.255.255.{{ {'24': '0', '25': '128'}[inner_prefix] }}
-    gateway {{ vip_address | trim | regex_replace('\\d+$', '') }}{{ {'24': '1', '25': '129'}[inner_prefix] }}
-    dns-nameservers {{ network_dns_nameservers }}
+    gateway {{
+      ((node_ip.split('.')[:-1] | join('.')) ~ '.2')
+      if (network_mode is defined and (network_mode | trim) == 'vmware_nat')
+      else
+      (vip_address | trim | regex_replace('\\d+$', '') ~ {'24': '1', '25': '129'}[inner_prefix])
+    }}
+    dns-nameservers {{
+      ((node_ip.split('.')[:-1] | join('.')) ~ '.2')
+      if (network_mode is defined and (network_mode | trim) == 'vmware_nat')
+      else
+      network_dns_nameservers
+    }}
