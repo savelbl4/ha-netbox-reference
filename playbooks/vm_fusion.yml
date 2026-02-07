@@ -1,0 +1,106 @@
+---
+- name: Recreate VMware Fusion VMs from gold
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    vmrun: "/Applications/VMware Fusion.app/Contents/Library/vmrun"
+    vmrun_type: "fusion"
+    home_dir: "{{ lookup('env', 'HOME') }}"
+    gold_vmx: "{{ home_dir }}/VMs/debian-trixie-arm.vmwarevm/debian-trixie-arm.vmx"
+    vms_root: "{{ home_dir }}/VMs/lab"
+
+    vms: "{{ groups['all'] | map('community.general.dict_kv', 'name') | list }}"
+
+  tasks:
+    - name: test
+      ansible.builtin.debug:
+        msg: |
+          {{ groups['all'] }}
+          {{ vms }}
+      tags:
+        - test
+
+    - name: Reset VMs if running (soft -> hard)
+      ansible.builtin.shell: |
+        set -euo pipefail
+        vmx="{{ vms_root }}/{{ item.name }}.vmwarevm/{{ item.name }}.vmx"
+        if [ -f "$vmx" ]; then
+          "{{ vmrun }}" -T "{{ vmrun_type }}" reset "$vmx" soft || \
+          "{{ vmrun }}" -T "{{ vmrun_type }}" reset "$vmx" hard || true
+        fi
+      args:
+        executable: /bin/bash
+      loop: "{{ vms }}"
+      changed_when: false
+      tags:
+        - never
+        - reset
+
+    - name: Stop VMs if running (soft -> hard)
+      ansible.builtin.shell: |
+        set -euo pipefail
+        vmx="{{ vms_root }}/{{ item.name }}.vmwarevm/{{ item.name }}.vmx"
+        if [ -f "$vmx" ]; then
+          "{{ vmrun }}" -T "{{ vmrun_type }}" stop "$vmx" soft || \
+          "{{ vmrun }}" -T "{{ vmrun_type }}" stop "$vmx" hard || true
+        fi
+      args:
+        executable: /bin/bash
+      loop: "{{ vms }}"
+      changed_when: false
+      tags:
+        - remove
+
+    - name: Remove existing VM folders
+      ansible.builtin.file:
+        path: "{{ vms_root }}/{{ item.name }}.vmwarevm"
+        state: absent
+      loop: "{{ vms }}"
+      tags:
+        - remove
+
+    - name: Clone from gold (full clone)
+      ansible.builtin.shell: |
+        set -euo pipefail
+        dest_vmx="{{ vms_root }}/{{ item.name }}.vmwarevm/{{ item.name }}.vmx"
+        mkdir -p "{{ vms_root }}"
+        "{{ vmrun }}" -T "{{ vmrun_type }}" clone "{{ gold_vmx }}" "$dest_vmx" full -cloneName "{{ item.name }}"
+      args:
+        executable: /bin/bash
+      loop: "{{ vms }}"
+      changed_when: true
+
+    - name: Start VMs
+      ansible.builtin.shell: |
+        set -euo pipefail
+        vmx="{{ vms_root }}/{{ item.name }}.vmwarevm/{{ item.name }}.vmx"
+        "{{ vmrun }}" -T "{{ vmrun_type }}" start "$vmx" nogui
+      args:
+        executable: /bin/bash
+      loop: "{{ vms }}"
+      changed_when: true
+
+    - name: Show IP
+      ansible.builtin.shell: |
+        set -euo pipefail
+        vmx="{{ vms_root }}/{{ item.name }}.vmwarevm/{{ item.name }}.vmx"
+        "{{ vmrun }}" -T "{{ vmrun_type }}" getGuestIPAddress "$vmx" -wait
+      args:
+        executable: /bin/bash
+      loop: "{{ vms }}"
+      changed_when: true
+      register: ip
+      tags:
+        - reset
+
+    - name: Show ip
+      ansible.builtin.debug:
+        msg: |
+          {{ item.stdout }}
+      loop: "{{ ip.results }}"
+      loop_control:
+          loop_var: item
+          label: "{{ item.item.name }}"
+      tags:
+        - reset
