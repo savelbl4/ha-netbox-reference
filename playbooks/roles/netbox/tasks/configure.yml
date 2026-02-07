@@ -29,6 +29,9 @@
     dest: "{{ netbox_base_dir }}/netbox/netbox/configuration.py"
     remote_src: true
     force: false
+    owner: "netbox"
+    group: "netbox"
+    mode: "0640"
 
 - name: Render configuration.py
   ansible.builtin.template:
