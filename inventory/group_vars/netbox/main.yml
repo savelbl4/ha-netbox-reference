@@ -1,0 +1,279 @@
+ansible_user: root
+ansible_become: false
+
+# заглушка для vmware fusion
+network_mode: "vmware_nat"
+# доменное имя сервиса
+FQDN: "netbox.example.local"
+# VIP для работы сервисов
+inner_ip: "172.16.113.204"
+# внутренняя маска
+inner_prefix: "24"
+# VIP для внешних клиентов
+out_ip: "172.16.113.205"
+# внешняя маска
+out_prefix: "24"
+# сертификат для Angie положите сюда -> playbooks/roles/angie/files/
+name_of_certs: "199"
+# нужно ли поднять VIP для внешних клиентов
+setup_nb_vip: true
+
+start_patroni: false  # с этим ключём patroni запустит кластер
+
+node_ip: "{{ node_ip | default(ansible_host) }}"
+
+vip_candidate: "{{ vip_candidate | default(true) }}"
+
+
+# VIP и сеть
+vip_address: "{{ inner_ip }}"
+vip_cidr: "{{ vip_address }}/{{ inner_prefix }}"
+keepalived_interface: "eth0"
+vrrp_router_id: "{{ vip_address | split('.') | last }}"
+vrrp_auth_pass: ""
+vrrp_advert_int: 1
+vrrp_nopreempt: false
+vip_address_2: "{{ out_ip }}"
+vip_cidr_2: "{{ vip_address_2 }}/{{ out_prefix }}"
+keepalived_interface_2: "eth0"
+vrrp_router_id_2: "{{ vip_address_2 | split('.') | last }}"
+
+vip_nonlocal: "/etc/sysctl.d/60-vip-nonlocal.conf"
+
+network_dns_nameservers: "77.88.8.8 172.16.0.131"
+
+# Порты/адреса PostgreSQL/Patroni
+postgres_port: 5432
+haproxy_read_port: 5433
+patroni_rest_port: 8008
+
+# Тюнинг HAProxy
+haproxy_maxconn: 10000
+haproxy_server_maxconn: 500
+haproxy_inter: 1s
+haproxy_fall: 2
+haproxy_rise: 2
+
+haproxy_certs_dir: "/etc/haproxy/certs"
+haproxy_cert_filename: "{{ name_of_certs }}.crt"
+haproxy_key_filename: "{{ name_of_certs }}.key"
+haproxy_pem_path: "{{ haproxy_certs_dir }}/netbox.pem"
+
+### etcd
+
+# Порты по ТЗ:
+etcd_client_port: 22379
+etcd_peer_port: 22380
+
+# Токен кластера:
+etcd_cluster_token: "dz-patroni-etcd{{ group_names[0] | lower | replace('_', '-') }}"
+
+# новый путь данных
+etcd_data_dir: /var/lib/etcd-patroni
+etcd_old_data_dir: /var/lib/etcd
+
+# Тюнинг:
+etcd_auto_compaction_mode: periodic
+etcd_auto_compaction_retention: "1h"
+etcd_snapshot_count: 10000
+
+# При необходимости открыть UFW (оставьте false, если файрвол нет/не нужен)
+etcd_manage_ufw: false
+
+# что делать с данными:
+# - если true: полностью очистить data dir (чистый старт)
+etcd_reinit: false
+# - если true: перенести старый /var/lib/etcd в новый каталог (сохранить состояние узла)
+etcd_migrate_old_data: false
+
+### patroni
+
+# Cluster-wide vars
+pg_version: 18
+pg_port: 5432
+
+# etcd v3 endpoints (client port 22379). Scheme is optional; template strips it.
+dcs_endpoints:
+  - "http://{{ hostvars[groups['netbox'][0]].node_ip }}:{{ etcd_client_port }}"
+  - "http://{{ hostvars[groups['netbox'][1]].node_ip }}:{{ etcd_client_port }}"
+  - "http://{{ hostvars[groups['netbox'][2]].node_ip }}:{{ etcd_client_port }}"
+
+# Patroni scope
+patroni_scope: "pgcluster{{ group_names[0] | lower }}"
+patroni_namespace: "/service/pgcluster"
+
+# Data dir
+patroni_data_dir: "/var/lib/postgresql/{{ pg_version }}/patroni"
+
+# Credentials (replace with Vault in prod)
+pg_superuser: "postgres"
+pg_superuser_password: ""
+replication_user: "replicator"
+replication_password: ""
+
+# Tuning for 8GB nodes
+pg_shared_buffers: "2GB"
+pg_effective_cache_size: "6GB"
+pg_maintenance_work_mem: "512MB"
+pg_max_connections: 200
+pg_wal_keep_size: "1024MB"
+pg_max_replication_slots: 40
+pg_max_wal_senders: 30
+pg_max_logical_workers: 8
+pg_max_worker_processes: 16
+pg_max_slot_wal_keep_size: "32GB"
+
+# Sync replication policy
+patroni_synchronous_mode: true
+patroni_synchronous_node_count: 1
+patroni_synchronous_mode_strict: true
+
+# Access controls
+cluster_subnet: "{{ vip_address | trim | regex_replace('\\d+$', '') }}{{ {'24': '0', '25': '128'}[inner_prefix] }}/{{ inner_prefix }}"
+allowed_client_subnets:
+  - "{{ vip_address_2 | trim | regex_replace('\\d+$', '') }}{{ {'24': '0', '25': '128'}[out_prefix] }}/{{ out_prefix }}"
+  - "{{ vip_address | trim | regex_replace('\\d+$', '') }}{{ {'24': '0', '25': '128'}[inner_prefix] }}/{{ inner_prefix }}"
+
+# Run Patroni from venv for robust extras
+patroni_use_venv: true
+patroni_venv_dir: "/opt/patroni"
+
+### redis + sentinel
+
+# Redis
+redis_version: "7"
+redis_port: 6379
+redis_bind_list:
+  - "127.0.0.1"
+  - "{{ hostvars[inventory_hostname].node_ip }}"
+redis_data_dir: "/var/lib/redis"
+redis_bind: "0.0.0.0"
+redis_password: ""
+redis_appendonly: "yes"
+redis_appendfsync: "everysec"
+redis_save_rules:
+  - "900 1"
+  - "300 10"
+  - "60 10000"
+
+# стартовый мастер = первый узел группы
+redis_master_host: "{{ groups['netbox'][0] }}"
+redis_master_ip: "{{ hostvars[redis_master_host].node_ip }}"
+
+# Sentinel
+sentinel_port: 26379
+sentinel_name: "myredis{{ group_names[0] | lower }}"
+sentinel_quorum: 2
+sentinel_down_after_ms: 5000
+sentinel_failover_timeout_ms: 60000
+sentinel_parallel_syncs: 1
+
+# HAProxy (Redis)
+haproxy_redis_enabled: true
+haproxy_redis_front_port: 6379
+haproxy_redis_check_user: ""            # если используешь ACL-пользователя — укажи имя, иначе оставь ""
+haproxy_redis_check_pass: "{{ redis_password }}"
+
+# Linux тюнинг (по желанию)
+redis_sysctl:
+  vm.overcommit_memory: 1
+  net.core.somaxconn: 1024
+  # Transparent Huge Pages отключаются скриптом/юнитом, не sysctl
+
+### PgBouncer
+# куда PgBouncer будет коннектиться (VIP HAProxy)
+pgb_vip: "{{ vip_address }}"
+pgb_vip_port_write: "{{ postgres_port }}"
+pgb_vip_port_read: "{{ haproxy_read_port }}"
+
+# где PgBouncer слушает клиентов
+pgb_listen_addr: "{{ hostvars[inventory_hostname].node_ip }}"
+pgb_listen_port: 6432
+
+# пуллинг и таймауты
+pgb_pool_mode: "transaction"       # session | transaction | statement
+pgb_max_client_conn: 2000
+pgb_default_pool_size: 50
+pgb_min_pool_size: 5
+pgb_reserve_pool_size: 20
+pgb_reserve_pool_timeout: 5
+pgb_query_timeout: 120
+pgb_query_wait_timeout: 120
+pgb_idle_xact_timeout: 300
+pgb_server_idle_timeout: 600
+pgb_server_reset_query: "DISCARD ALL"
+
+# аутентификация
+pgb_auth_type: "md5"                # или "scram-sha-256" (если нужна scram, включите также auth_query)
+pgb_auth_query: ""                  # пример для scram: "SELECT usename, passwd FROM pg_shadow WHERE usename=$1"
+pgb_auth_user: ""                   # можно задать отдельного auth_user если используете auth_query
+
+# пользователи PgBouncer (ЛУЧШЕ хранить пароли через Ansible Vault)
+# пароль — в формате Postgres md5: md5 + md5(password + username)
+pgb_users:
+  - { name: "netbox", pass: "{{ pg_superuser_password }}" }
+  - { name: "netbox-test", pass: "{{ pg_superuser_password }}" }
+  - { name: "{{ pgb_admin_users }}", pass: "{{ pgb_admin_pass }}" }
+  - { name: "{{ pgb_stats_users }}", pass: "{{ pgb_stats_pass }}" }
+
+# определение баз, к которым будут подключаться клиенты
+# имя слева — это "dbname", который будут указывать клиенты в строке подключения
+pgb_databases:
+  netbox:
+    params:
+      host: "{{ pgb_vip }}"
+      port: "{{ pgb_vip_port_write }}"
+      dbname: "netbox"
+  netbox_ro:
+    params:
+      host: "{{ pgb_vip }}"
+      port: "{{ pgb_vip_port_read }}"
+      dbname: "netbox"
+  netbox-test:
+    params:
+      host: "{{ pgb_vip }}"
+      port: "{{ pgb_vip_port_write }}"
+      dbname: "netbox-test"
+  netbox-test_ro:
+    params:
+      host: "{{ pgb_vip }}"
+      port: "{{ pgb_vip_port_read }}"
+      dbname: "netbox-test"
+
+# пути (обычно дефолтные для Debian/Ubuntu; на RHEL совпадает)
+pgb_config_dir: "/etc/pgbouncer"
+pgb_config_file: "/etc/pgbouncer/pgbouncer.ini"
+pgb_auth_file: "/etc/pgbouncer/userlist.txt"
+# pgb_log_dir: "/var/log/pgbouncer"
+# pgb_logfile: "/var/log/pgbouncer/pgbouncer.log"
+pgb_pidfile: "/var/run/pgbouncer/pgbouncer.pid"
+
+# пользователи со стат/админ доступом (должны существовать в pgb_users)
+pgb_admin_users: "pgbouncer_admin"
+pgb_stats_users: "pgbouncer_stats"
+pgb_admin_pass: ""
+pgb_stats_pass: ""
+
+# включать ли firewalld правило (RHEL). Нам не нужно, слушаем localhost.
+pgb_manage_firewalld: false
+
+pgb_package_name: "pgbouncer"
+pgb_service_name: "pgbouncer"
+
+### Angie
+
+angie_listen_port: 80
+angie_cert_filename: "{{ haproxy_cert_filename }}"
+angie_key_filename: "{{ haproxy_key_filename }}"
+angie_cert_path: "/etc/ssl/private/netbox.crt"
+angie_key_path: "/etc/ssl/private/netbox.key"
+
+gunicorn_listen_port: 8001
+
+### Alloy
+
+alloy_remote_host: ""  # хост где живёт prometeus
+
+### Logging
+
+logging_remote_host: ""  # хост записывающий логи из консоли
