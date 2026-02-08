@@ -33,7 +33,19 @@
   ansible.builtin.command:
     cmd: "{{ netbox_venv }}/bin/pip install --upgrade pip setuptools wheel"
 
-- name: Install NetBox Python deps
-  ansible.builtin.command:
-    cmd: "{{ netbox_venv }}/bin/pip install -r requirements.txt"
+- name: Install NetBox Python deps (pip hardened)
+  ansible.builtin.shell: |
+    set -o pipefail
+    {{ netbox_venv }}/bin/pip install -r requirements.txt \
+      --prefer-binary \
+      --retries 10 \
+      --timeout 60 \
+    2>&1 | tee /var/log/netbox-pip-install.log
+  args:
     chdir: "{{ netbox_base_dir }}"
+    executable: /bin/bash
+  register: netbox_pip_install
+  retries: 3
+  delay: 15
+  until: netbox_pip_install.rc == 0
+  changed_when: netbox_pip_install.rc == 0

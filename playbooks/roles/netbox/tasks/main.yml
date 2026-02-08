@@ -97,7 +97,7 @@
     group: "{{ netbox_group }}"
     mode: "0755"
 
-- name: Скопировать шаблон скрипта синхронизации
+- name: Deploy NetBox synchronization script
   ansible.builtin.template:
     src: netbox_sync.sh.j2
     dest: "/usr/local/bin/netbox_sync.sh"
@@ -159,19 +159,19 @@
       52 6    1 * *   root    test -x /usr/sbin/anacron || { cd / && run-parts --report /etc/cron.monthly; }
       0  2    * * *   root    /bin/bash /usr/local/bin/netbox_sync.sh
 
-- name: Синхронизируем с продом (с таймаутом)
-  ansible.builtin.shell: /usr/local/bin/netbox_sync.sh
+- name: Execute NetBox production sync
+  ansible.builtin.shell: >
+    timeout 300 /usr/local/bin/netbox_sync.sh
   args:
     executable: /bin/bash
   register: netbox_sync_result
   until: netbox_sync_result.rc == 0
   retries: 5
   delay: 30
-  timeout: 300                # Общий таймаут для всех попыток
   ignore_errors: true
   changed_when: netbox_sync_result.rc == 0
 
-- name: Показать результат синхронизации
+- name: Show NetBox sync result on failure
   ansible.builtin.debug:
     msg: |
       RC: {{ netbox_sync_result.rc }}

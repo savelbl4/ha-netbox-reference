@@ -24,11 +24,11 @@ network_mode: "vmware_nat"
 # доменное имя сервиса
 FQDN: "netbox.example.local"
 # VIP для работы сервисов
-inner_ip: "{{ (node_ip.split('.')[:-1] | join('.')) ~ '.204') }}"
+inner_ip: "{{ (node_ip.split('.')[:-1] | join('.')) ~ '.204' }}"
 # внутренняя маска
 inner_prefix: "24"
 # VIP для внешних клиентов
-out_ip: "{{ (node_ip.split('.')[:-1] | join('.')) ~ '.205') }}"
+out_ip: "{{ (node_ip.split('.')[:-1] | join('.')) ~ '.205' }}"
 # внешняя маска
 out_prefix: "24"
 # сертификат для Angie положите сюда -> playbooks/roles/angie/files/
