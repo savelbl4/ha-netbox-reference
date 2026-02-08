@@ -7,7 +7,7 @@
     vmrun: "/Applications/VMware Fusion.app/Contents/Library/vmrun"
     vmrun_type: "fusion"
     home_dir: "{{ lookup('env', 'HOME') }}"
-    gold_vmx: "{{ home_dir }}/VMs/debian-trixie-arm.vmwarevm/debian-trixie-arm.vmx"
+    gold_vmx: "{{ home_dir }}/VMs/debian_trixie.vmwarevm/debian_trixie.vmx"
     vms_root: "{{ home_dir }}/VMs/lab"
 
     vms: "{{ groups['all'] | map('community.general.dict_kv', 'name') | list }}"
@@ -81,7 +81,7 @@
       loop: "{{ vms }}"
       changed_when: true
 
-    - name: Show IP
+    - name: Get IP
       ansible.builtin.shell: |
         set -euo pipefail
         vmx="{{ vms_root }}/{{ item.name }}.vmwarevm/{{ item.name }}.vmx"
@@ -94,7 +94,7 @@
       tags:
         - reset
 
-    - name: Show ip
+    - name: Show IP
       ansible.builtin.debug:
         msg: |
           {{ item.stdout }}
