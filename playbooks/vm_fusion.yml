@@ -80,6 +80,8 @@
         executable: /bin/bash
       loop: "{{ vms }}"
       changed_when: true
+      tags:
+        - start
 
     - name: Get IP
       ansible.builtin.shell: |
@@ -93,6 +95,7 @@
       register: ip
       tags:
         - reset
+        - start
 
     - name: Show IP
       ansible.builtin.debug:
@@ -104,3 +107,4 @@
           label: "{{ item.item.name }}"
       tags:
         - reset
+        - start
