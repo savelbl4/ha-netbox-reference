@@ -4,3 +4,4 @@ __pycache__
 *~
 .idea/
 secrets.yml
+.vault-pass.txt

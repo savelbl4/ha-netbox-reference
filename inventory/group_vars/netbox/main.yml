@@ -1,16 +1,34 @@
-ansible_user: root
-ansible_become: false
+---
+ansible_user: user
+ansible_password: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          33626538353237626362613166333232373030353166303931363238373735316362653730373438
+          3165323236666539316135643333336164396631616136360a616265363963386165356536393035
+          34353237623764366330396235626563366233623231313035663131386137376335356339646264
+          6461343335326263640a386334653065396332393839306539333237386265633931386563376236
+          3630
+ansible_become: true
+ansible_become_method: su
+ansible_become_user: root
+ansible_become_password: !vault |
+          $ANSIBLE_VAULT;1.1;AES256
+          35356232343062303135663363616534373237373636373961623065613132343166313535396533
+          3739323934393233636135613464366266363965653235650a363537323334396530323537356233
+          34376239656532326235383532666637366138663561646430643430336264373134656462643065
+          6337393635646637350a323935313234326234346566626133636364303533346464626165333630
+          3032
+ansible_python_interpreter: /usr/bin/python3
 
 # заглушка для vmware fusion
 network_mode: "vmware_nat"
 # доменное имя сервиса
 FQDN: "netbox.example.local"
 # VIP для работы сервисов
-inner_ip: "172.16.113.204"
+inner_ip: "172.16.179.204"
 # внутренняя маска
 inner_prefix: "24"
 # VIP для внешних клиентов
-out_ip: "172.16.113.205"
+out_ip: "172.16.179.205"
 # внешняя маска
 out_prefix: "24"
 # сертификат для Angie положите сюда -> playbooks/roles/angie/files/
@@ -20,22 +38,22 @@ setup_nb_vip: true
 
 start_patroni: false  # с этим ключём patroni запустит кластер
 
-node_ip: "{{ node_ip | default(ansible_host) }}"
+node_ip: "{{ new_ip | default(ansible_host) }}"
 
-vip_candidate: "{{ vip_candidate | default(true) }}"
+vip_candidate: "{{ vip__candidate | default(true) }}"
 
 
 # VIP и сеть
 vip_address: "{{ inner_ip }}"
 vip_cidr: "{{ vip_address }}/{{ inner_prefix }}"
-keepalived_interface: "eth0"
+keepalived_interface: "ens33"
 vrrp_router_id: "{{ vip_address | split('.') | last }}"
 vrrp_auth_pass: ""
 vrrp_advert_int: 1
 vrrp_nopreempt: false
 vip_address_2: "{{ out_ip }}"
 vip_cidr_2: "{{ vip_address_2 }}/{{ out_prefix }}"
-keepalived_interface_2: "eth0"
+keepalived_interface_2: "ens33"
 vrrp_router_id_2: "{{ vip_address_2 | split('.') | last }}"
 
 vip_nonlocal: "/etc/sysctl.d/60-vip-nonlocal.conf"
