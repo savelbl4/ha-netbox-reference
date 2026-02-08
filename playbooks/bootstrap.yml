@@ -26,9 +26,9 @@
       tags: [angie, keepalived]
     - role: netbox
       tags: [netbox]
-    - role: netdata
-      tags: [monitoring, skip]
-    - role: exporters
-      tags: [monitoring, exporters, skip]
-    - role: alloy
-      tags: [monitoring, skip]
+#    - role: netdata
+#      tags: [monitoring, skip]
+#    - role: exporters
+#      tags: [monitoring, exporters, skip]
+#    - role: alloy
+#      tags: [monitoring, skip]

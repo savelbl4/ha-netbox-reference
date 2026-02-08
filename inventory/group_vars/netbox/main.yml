@@ -24,11 +24,11 @@ network_mode: "vmware_nat"
 # доменное имя сервиса
 FQDN: "netbox.example.local"
 # VIP для работы сервисов
-inner_ip: "172.16.179.204"
+inner_ip: "{{ (node_ip.split('.')[:-1] | join('.')) ~ '.204') }}"
 # внутренняя маска
 inner_prefix: "24"
 # VIP для внешних клиентов
-out_ip: "172.16.179.205"
+out_ip: "{{ (node_ip.split('.')[:-1] | join('.')) ~ '.205') }}"
 # внешняя маска
 out_prefix: "24"
 # сертификат для Angie положите сюда -> playbooks/roles/angie/files/
@@ -40,20 +40,19 @@ start_patroni: false  # с этим ключём patroni запустит кла
 
 node_ip: "{{ new_ip | default(ansible_host) }}"
 
-vip_candidate: "{{ vip__candidate | default(true) }}"
+vip_candidate: "{{ vip | default(true) }}"
 
 
 # VIP и сеть
 vip_address: "{{ inner_ip }}"
 vip_cidr: "{{ vip_address }}/{{ inner_prefix }}"
-keepalived_interface: "ens33"
+keepalived_interface: "{{ interface | default('eth0') }}"
 vrrp_router_id: "{{ vip_address | split('.') | last }}"
 vrrp_auth_pass: ""
 vrrp_advert_int: 1
 vrrp_nopreempt: false
 vip_address_2: "{{ out_ip }}"
 vip_cidr_2: "{{ vip_address_2 }}/{{ out_prefix }}"
-keepalived_interface_2: "ens33"
 vrrp_router_id_2: "{{ vip_address_2 | split('.') | last }}"
 
 vip_nonlocal: "/etc/sysctl.d/60-vip-nonlocal.conf"
