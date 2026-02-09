@@ -38,8 +38,9 @@ vrrp_instance VI_PG_VIP {
     }
 
     track_script {
-        chk_haproxy
-{#        chk_master#}
+        chk_master  weight -30
+        chk_netbox  weight -30
+        chk_haproxy weight -30
     }
 
     virtual_ipaddress {
@@ -63,7 +64,8 @@ vrrp_instance VI_NB_VIP {
     }
 
     track_script {
-        chk_netbox weight -150
+        chk_master weight -50
+        chk_netbox weight -100
     }
 
     virtual_ipaddress {
