@@ -20,4 +20,4 @@
     src: "{{ netbox_base_dir }}/netbox/project-static/docs"
     owner: "{{ netbox_user }}"
     group: "{{ netbox_group }}"
-  force: true
+    force: true
