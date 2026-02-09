@@ -1,0 +1,54 @@
+---
+- name: Import Grafana dashboard from JSON via HTTP API
+  hosts: localhost
+  become: false
+  gather_facts: false
+
+  vars:
+    grafana_url: "http://{{ alloy_remote_host }}:3000"
+    grafana_token: "{{ grafana_token_main }}"
+    dashboard_json_path: "{{ playbook_dir }}/roles/logging/files/grafana.json"
+    grafana_folder_id: null
+    grafana_overwrite: true
+
+  tasks:
+    - name: Read dashboard JSON from file (control node)
+      ansible.builtin.slurp:
+        src: "{{ dashboard_json_path }}"
+      register: dashboard_file
+
+    - name: Parse dashboard JSON
+      ansible.builtin.set_fact:
+        dashboard_obj: "{{ (dashboard_file.content | b64decode) | from_json }}"
+
+    - name: Build Grafana import payload
+      ansible.builtin.set_fact:
+        grafana_import_payload: >-
+          {{
+            {
+              'dashboard': (dashboard_obj | combine({'id': none}, recursive=True)),
+              'overwrite': grafana_overwrite
+            }
+            | combine(
+                (grafana_folder_id is not none)
+                | ternary({'folderId': grafana_folder_id}, {}),
+                recursive=True
+              )
+          }}
+
+    - name: Import dashboard to Grafana
+      ansible.builtin.uri:
+        url: "{{ grafana_url }}/api/dashboards/db"
+        method: POST
+        headers:
+          Authorization: "Bearer {{ grafana_token }}"
+          Content-Type: "application/json"
+        body_format: json
+        body: "{{ grafana_import_payload }}"
+        status_code: [200]
+        return_content: true
+      register: grafana_import_result
+
+    - name: Show Grafana import result
+      ansible.builtin.debug:
+        var: grafana_import_result.json

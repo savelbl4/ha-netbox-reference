@@ -8,6 +8,10 @@
       tags: [patroni, network]
     - role: logging
       tags: [monitoring, network, logging]
+    - role: exporters
+      tags: [exporters, monitoring, skip]
+    - role: alloy
+      tags: [alloy, monitoring, skip]
     - role: redis
       tags: [redis]
     - role: sentinel
@@ -26,7 +30,3 @@
       tags: [angie, keepalived]
     - role: netbox
       tags: [netbox]
-    - role: exporters
-      tags: [exporters, monitoring, skip]
-    - role: alloy
-      tags: [alloy, monitoring, skip]
