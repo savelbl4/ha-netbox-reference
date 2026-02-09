@@ -1,0 +1,4 @@
+- name: Install Alloy
+  ansible.builtin.import_tasks: install.yml
+- name: Configure Alloy
+  ansible.builtin.import_tasks: configure.yml

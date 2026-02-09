@@ -1,0 +1,462 @@
+# ┌─────────────────────────────────────────────────────────────────────────────┐
+# │ NetBox Stack — Prometheus Exporters (HAProxy, PgBouncer, Postgres, Redis)   │
+# └─────────────────────────────────────────────────────────────────────────────┘
+# Что это: один плейбук, который ставит бинарные экспортеры в /usr/local/bin
+# и поднимает systemd-сервисы с корректными флагами.
+# Работает на Debian/Ubuntu (systemd). Интернет для загрузки релизов обязателен.
+#
+# Хосты: применяйте ко всем трём нодам
+#
+# Переменные ниже — можно править под себя (пароли/версии/порты).
+#
+# ВНИМАНИЕ по учеткам:
+#  - postgres_exporter: нужен пользователь БД с правами pg_monitor
+#    (например: CREATE USER postgres_exporter WITH PASSWORD '***'; GRANT pg_monitor TO postgres_exporter;)
+#  - pgbouncer_exporter: нужны валидные креды к admin-базе pgbouncer (обычно postgres)
+#  - redis_exporter: нужен пароль REDIS_PASS (как в redis.conf)
+#
+- name: Ensure deps present
+  ansible.builtin.apt:
+    name:
+      - curl
+      - tar
+    state: present
+    update_cache: true
+
+- name: Create src/bin dirs
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ exporters_src_dir }}"
+    - "{{ exporters_bin_dir }}"
+
+- name: Create service users (prometheus)
+  ansible.builtin.user:
+    name: prometheus
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+  # haproxy exporter будет работать под пользователем haproxy, остальные — под prometheus
+
+- name: Stop exporters
+  ansible.builtin.service:
+    name: "{{ item }}"
+    state: stopped
+    enabled: false
+  failed_when: false
+  loop:
+    - haproxy-exporter.service
+    - postgres-exporter.service
+    - pgbouncer-exporter.service
+    - redis-exporter.service
+
+###########################################################################
+# HAProxy Exporter
+###########################################################################
+- name: Download haproxy_exporter archive
+  ansible.builtin.get_url:
+    url: "{{ exporters_haproxy_url }}"
+    dest: "{{ exporters_src_dir }}/haproxy_exporter.tar.gz"
+    mode: "0644"
+  register: exporters_dl_haproxy
+
+- name: Unpack haproxy_exporter
+  ansible.builtin.unarchive:
+    src: "{{ exporters_src_dir }}/haproxy_exporter.tar.gz"
+    dest: "{{ exporters_src_dir }}"
+    remote_src: true
+    extra_opts: ["--strip-components=1"]
+  when: exporters_dl_haproxy is changed
+
+- name: Install haproxy_exporter binary
+  ansible.builtin.copy:
+    src: "{{ exporters_src_dir }}/haproxy_exporter"
+    dest: "{{ exporters_bin_dir }}/haproxy_exporter"
+    mode: "0755"
+    remote_src: true
+
+- name: Create systemd service for haproxy_exporter
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/haproxy-exporter.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Prometheus HAProxy Exporter
+      After=network-online.target haproxy.service
+      Wants=network-online.target
+
+      [Service]
+      User=haproxy
+      Group=haproxy
+      ExecStart=/usr/local/bin/haproxy_exporter \
+        --web.listen-address=:9101 \
+        --haproxy.scrape-uri="unix:/run/haproxy/admin.sock"
+      Restart=always
+      RestartSec=2
+      AmbientCapabilities=CAP_NET_BIND_SERVICE
+      NoNewPrivileges=true
+
+      [Install]
+      WantedBy=multi-user.target
+
+###########################################################################
+# Postgres Exporter
+###########################################################################
+- name: Ensure postgres_exporter config dir exists
+  ansible.builtin.file:
+    path: /etc/postgres_exporter
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install extended queries (lag bytes) for postgres_exporter
+  ansible.builtin.copy:
+    dest: /etc/postgres_exporter/queries-repl.yml
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      pg_replication:
+        query: |
+          SELECT
+            'primary'::text AS role,
+            application_name,
+            client_addr::text AS client_addr,
+            state,
+            sync_state,
+            COALESCE(pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn), 0)::float8 AS lag_bytes
+          FROM pg_stat_replication
+          WHERE NOT pg_is_in_recovery();
+        metrics:
+          - role:             { usage: "LABEL" }
+          - application_name: { usage: "LABEL" }
+          - client_addr:      { usage: "LABEL" }
+          - state:            { usage: "LABEL" }
+          - sync_state:       { usage: "LABEL" }
+          - lag_bytes:
+              usage: "GAUGE"   # без пробелов; тут просто подчёркиваю, что это GAUGE :)
+              description: "Replication lag to standby replay_lsn in bytes (only on primary)."
+      pg_replication_apply:
+        query: |
+          SELECT
+            'standby'::text AS role,
+            COALESCE(pg_wal_lsn_diff(pg_last_wal_receive_lsn(), pg_last_wal_replay_lsn()), 0)::float8 AS lag_bytes
+          WHERE pg_is_in_recovery();
+        metrics:
+          - role: { usage: "LABEL" }
+          - lag_bytes:
+              usage: "GAUGE"
+              description: "Apply lag on standby in bytes (receive_lsn - replay_lsn)."
+
+
+- name: Download postgres_exporter archive
+  ansible.builtin.get_url:
+    url: "{{ exporters_postgres_url }}"
+    dest: "{{ exporters_src_dir }}/postgres_exporter.tar.gz"
+    mode: "0644"
+  register: exporters_dl_pg
+
+- name: Unpack postgres_exporter
+  ansible.builtin.unarchive:
+    src: "{{ exporters_src_dir }}/postgres_exporter.tar.gz"
+    dest: "{{ exporters_src_dir }}"
+    remote_src: true
+    extra_opts: ["--strip-components=1"]
+  when: exporters_dl_pg is changed
+
+- name: Install postgres_exporter binary
+  ansible.builtin.copy:
+    src: "{{ exporters_src_dir }}/postgres_exporter"
+    dest: "{{ exporters_bin_dir }}/postgres_exporter"
+    mode: "0755"
+    remote_src: true
+
+- name: Create systemd service for postgres_exporter
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/postgres-exporter.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Prometheus Postgres Exporter
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      User=prometheus
+      Group=prometheus
+      Environment="DATA_SOURCE_NAME={{ exporters_postgres_dsn }}"
+      # extended queries: lag bytes (primary + standby)
+      Environment="PG_EXPORTER_EXTEND_QUERY_PATH=/etc/postgres_exporter/queries-repl.yml"
+      ExecStart={{ exporters_bin_dir }}/postgres_exporter --web.listen-address={{ exporters_postgres_listen }}
+      Restart=always
+      RestartSec=2
+      NoNewPrivileges=true
+
+      [Install]
+      WantedBy=multi-user.target
+
+###########################################################################
+# PgBouncer Exporter
+###########################################################################
+- name: Download pgbouncer_exporter archive
+  ansible.builtin.get_url:
+    url: "{{ exporters_pgbouncer_url }}"
+    dest: "{{ exporters_src_dir }}/pgbouncer_exporter.tar.gz"
+    mode: "0644"
+  register: exporters_dl_pgb
+
+- name: Unpack pgbouncer_exporter
+  ansible.builtin.unarchive:
+    src: "{{ exporters_src_dir }}/pgbouncer_exporter.tar.gz"
+    dest: "{{ exporters_src_dir }}"
+    remote_src: true
+    extra_opts: ["--strip-components=1"]
+  when: exporters_dl_pgb is changed
+
+- name: Install pgbouncer_exporter binary
+  ansible.builtin.copy:
+    src: "{{ exporters_src_dir }}/pgbouncer_exporter"
+    dest: "{{ exporters_bin_dir }}/pgbouncer_exporter"
+    mode: "0755"
+    remote_src: true
+
+- name: Create systemd service for pgbouncer_exporter
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/pgbouncer-exporter.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Prometheus PgBouncer Exporter
+      After=network-online.target pgbouncer.service
+      Wants=network-online.target
+
+      [Service]
+      User=prometheus
+      Group=prometheus
+      Environment="PGBOUNCER_EXPORTER_CONNECTION_STRING={{ exporters_pgbouncer_dsn }}"
+      ExecStart={{ exporters_bin_dir }}/pgbouncer_exporter --web.listen-address={{ exporters_pgbouncer_listen }}
+      Restart=always
+      RestartSec=2
+      NoNewPrivileges=true
+
+      [Install]
+      WantedBy=multi-user.target
+
+###########################################################################
+# Redis Exporter
+###########################################################################
+- name: Download redis_exporter archive
+  ansible.builtin.get_url:
+    url: "{{ exporters_redis_url }}"
+    dest: "{{ exporters_src_dir }}/redis_exporter.tar.gz"
+    mode: "0644"
+  register: exporters_dl_redis
+
+- name: Unpack redis_exporter
+  ansible.builtin.unarchive:
+    src: "{{ exporters_src_dir }}/redis_exporter.tar.gz"
+    dest: "{{ exporters_src_dir }}"
+    remote_src: true
+    extra_opts: ["--strip-components=1"]
+  when: exporters_dl_redis is changed
+
+- name: Install redis_exporter binary
+  ansible.builtin.copy:
+    src: "{{ exporters_src_dir }}/redis_exporter"
+    dest: "{{ exporters_bin_dir }}/redis_exporter"
+    mode: "0755"
+    remote_src: true
+
+- name: Create systemd service for redis_exporter
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/redis-exporter.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Prometheus Redis Exporter
+      After=network-online.target redis-server.service
+      Wants=network-online.target
+
+      [Service]
+      User=prometheus
+      Group=prometheus
+      ExecStart={{ exporters_bin_dir }}/redis_exporter \
+        --web.listen-address={{ exporters_redis_listen }} \
+        --redis.addr={{ exporters_redis_addr }} \
+        --redis.password={{ exporters_redis_password }}
+      Restart=always
+      RestartSec=2
+      NoNewPrivileges=true
+
+      [Install]
+      WantedBy=multi-user.target
+
+###########################################################################
+# Node Exporter (+ textfile collector)
+###########################################################################
+
+- name: Download node_exporter archive
+  ansible.builtin.get_url:
+    url: "{{ exporters_node_url }}"
+    dest: "{{ exporters_src_dir }}/node_exporter.tar.gz"
+    mode: "0644"
+  register: exporters_dl_node
+
+- name: Unpack node_exporter
+  ansible.builtin.unarchive:
+    src: "{{ exporters_src_dir }}/node_exporter.tar.gz"
+    dest: "{{ exporters_src_dir }}"
+    remote_src: true
+    extra_opts: ["--strip-components=1"]
+  when: exporters_dl_node is changed
+
+- name: Install node_exporter binary
+  ansible.builtin.copy:
+    src: "{{ exporters_src_dir }}/node_exporter"
+    dest: "{{ exporters_bin_dir }}/node_exporter"
+    mode: "0755"
+    remote_src: true
+
+- name: Ensure node_exporter textfile collector dir exists
+  ansible.builtin.file:
+    path: "{{ exporters_node_textfile_dir }}"
+    state: directory
+    owner: prometheus
+    group: prometheus
+    mode: "0755"
+
+- name: Create systemd service for node_exporter
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/node-exporter.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Prometheus Node Exporter
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      User=prometheus
+      Group=prometheus
+      ExecStart={{ exporters_bin_dir }}/node_exporter \
+        --web.listen-address={{ exporters_node_listen }} \
+        --collector.textfile.directory={{ exporters_node_textfile_dir }}
+      Restart=always
+      RestartSec=2
+      NoNewPrivileges=true
+
+      [Install]
+      WantedBy=multi-user.target
+
+###########################################################################
+# Blackbox Exporter
+###########################################################################
+
+- name: Ensure blackbox_exporter config dir exists
+  ansible.builtin.file:
+    path: "{{ exporters_blackbox_config_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install blackbox_exporter config
+  ansible.builtin.copy:
+    dest: "{{ exporters_blackbox_config_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      modules:
+        http_2xx:
+          prober: http
+          timeout: 5s
+          http:
+            preferred_ip_protocol: "ip4"
+            follow_redirects: true
+            valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+            valid_status_codes: []
+
+        http_2xx_insecure:
+          prober: http
+          timeout: 5s
+          http:
+            preferred_ip_protocol: "ip4"
+            follow_redirects: true
+            tls_config:
+              insecure_skip_verify: true
+
+        tcp_connect:
+          prober: tcp
+          timeout: 3s
+
+        icmp:
+          prober: icmp
+          timeout: 3s
+          icmp:
+            preferred_ip_protocol: "ip4"
+
+- name: Download blackbox_exporter archive
+  ansible.builtin.get_url:
+    url: "{{ exporters_blackbox_url }}"
+    dest: "{{ exporters_src_dir }}/blackbox_exporter.tar.gz"
+    mode: "0644"
+  register: exporters_dl_blackbox
+
+- name: Unpack blackbox_exporter
+  ansible.builtin.unarchive:
+    src: "{{ exporters_src_dir }}/blackbox_exporter.tar.gz"
+    dest: "{{ exporters_src_dir }}"
+    remote_src: true
+    extra_opts: ["--strip-components=1"]
+  when: exporters_dl_blackbox is changed
+
+- name: Install blackbox_exporter binary
+  ansible.builtin.copy:
+    src: "{{ exporters_src_dir }}/blackbox_exporter"
+    dest: "{{ exporters_bin_dir }}/blackbox_exporter"
+    mode: "0755"
+    remote_src: true
+
+- name: Create systemd service for blackbox_exporter
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/blackbox-exporter.service
+    mode: "0644"
+    content: |
+      [Unit]
+      Description=Prometheus Blackbox Exporter
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      User=prometheus
+      Group=prometheus
+      ExecStart={{ exporters_bin_dir }}/blackbox_exporter \
+        --web.listen-address={{ exporters_blackbox_listen }} \
+        --config.file={{ exporters_blackbox_config_file }}
+      Restart=always
+      RestartSec=2
+      NoNewPrivileges=true
+
+      [Install]
+      WantedBy=multi-user.target
+
+###########################################################################
+# Enable & start
+###########################################################################
+- name: Enable and start exporters
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+    daemon_reload: true
+  loop:
+    - haproxy-exporter.service
+    - postgres-exporter.service
+    - pgbouncer-exporter.service
+    - redis-exporter.service
+    - node-exporter.service
+    - blackbox-exporter.service

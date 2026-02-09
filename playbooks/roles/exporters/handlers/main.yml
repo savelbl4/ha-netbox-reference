@@ -1,0 +1,27 @@
+- name: Daemon reload
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Restart haproxy_exporter
+  ansible.builtin.systemd:
+    name: haproxy-exporter.service
+    state: restarted
+    enabled: true
+
+- name: Restart postgres_exporter
+  ansible.builtin.systemd:
+    name: postgres-exporter.service
+    state: restarted
+    enabled: true
+
+- name: Restart pgbouncer_exporter
+  ansible.builtin.systemd:
+    name: pgbouncer-exporter.service
+    state: restarted
+    enabled: true
+
+- name: Restart redis_exporter
+  ansible.builtin.systemd:
+    name: redis-exporter.service
+    state: restarted
+    enabled: true

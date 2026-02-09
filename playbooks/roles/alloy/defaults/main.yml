@@ -1,0 +1,8 @@
+alloy_version: "1.9.2"
+alloy_install_dir: "/usr/local/bin"
+alloy_binary_path: "/usr/local/bin/alloy"
+alloy_data_path: "/var/lib/alloy/data"
+alloy_work_path: "/var/lib/alloy"
+alloy_arch_map:
+  x86_64: amd64
+  aarch64: arm64

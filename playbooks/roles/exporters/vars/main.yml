@@ -1,0 +1,103 @@
+exporters_arch_map:
+  x86_64: amd64
+  amd64: amd64
+  aarch64: arm64
+  arm64: arm64
+
+# Версии бинарников (проверьте при необходимости)
+exporters_haproxy_version: "v0.15.0"
+exporters_postgres_version: "v0.17.1"
+exporters_pgbouncer_version: "v0.11.0"
+exporters_redis_version: "v1.77.0"
+exporters_node_version: "v1.10.2"
+exporters_blackbox_version: "v0.28.0"
+
+# Порты / адреса экспортеров
+exporters_haproxy_listen: ":9101"
+exporters_postgres_listen: ":9187"
+exporters_pgbouncer_listen: ":9127"
+exporters_redis_listen: ":9121"
+exporters_node_listen: ":9100"
+exporters_blackbox_listen: ":9115"
+
+# Настройки сервисов
+exporters_haproxy_admin_socket: "/run/haproxy/admin.sock"
+exporters_pgbouncer_address: "{{ pgb_listen_addr }}:{{ pgb_listen_port }}"
+exporters_pgbouncer_dsn: >
+  postgresql://{{ pgb_stats_users }}:{{
+  pgb_stats_pass | urlencode | replace('%', '%%')
+  }}@{{ exporters_pgbouncer_address }}/pgbouncer?sslmode=disable
+exporters_node_textfile_dir: "/var/lib/node_exporter/textfile_collector"
+exporters_blackbox_config_dir: /etc/blackbox_exporter
+exporters_blackbox_config_file: /etc/blackbox_exporter/blackbox.yml
+
+# Креды (ЗАМЕНИТЕ!)
+exporters_postgres_user: "{{ pg_superuser }}"
+exporters_postgres_password: "{{ pg_superuser_password }}"
+exporters_postgres_db: "netbox"
+exporters_postgres_dsn: >
+  postgresql://{{ exporters_postgres_user }}:{{
+  exporters_postgres_password | urlencode | replace('%', '%%')
+  }}@{{ hostvars[inventory_hostname].node_ip }}:{{ postgres_port }}/{{ exporters_postgres_db }}?sslmode=disable
+
+exporters_pgbouncer_user: "{{ pg_superuser }}"
+exporters_pgbouncer_password: "{{ pg_superuser_password }}"
+
+exporters_redis_password: "{{ redis_password }}"
+exporters_redis_addr: "redis://127.0.0.1:{{ redis_port }}"
+
+# Пути
+exporters_bin_dir: "/usr/local/bin"
+exporters_src_dir: "/usr/local/src/exporters"
+
+# Ссылки на релизы (Linux {{ arch }})
+exporters_haproxy_url: >
+  https://github.com/prometheus/haproxy_exporter/releases/download/{{
+  exporters_haproxy_version
+  }}/haproxy_exporter-{{
+  exporters_haproxy_version | replace('v', '')
+  }}.linux-{{
+  exporters_arch_map[ansible_architecture] | default('amd64')
+  }}.tar.gz
+exporters_postgres_url: >
+  https://github.com/prometheus-community/postgres_exporter/releases/download/{{
+  exporters_postgres_version
+  }}/postgres_exporter-{{
+  exporters_postgres_version | replace('v', '')
+  }}.linux-{{
+  exporters_arch_map[ansible_architecture] | default('amd64')
+  }}.tar.gz
+exporters_pgbouncer_url: >
+  https://github.com/prometheus-community/pgbouncer_exporter/releases/download/{{
+  exporters_pgbouncer_version
+  }}/pgbouncer_exporter-{{
+  exporters_pgbouncer_version | replace('v', '')
+  }}.linux-{{
+  exporters_arch_map[ansible_architecture] | default('amd64')
+  }}.tar.gz
+exporters_redis_url: >
+  https://github.com/oliver006/redis_exporter/releases/download/{{
+  exporters_redis_version
+  }}/redis_exporter-{{
+  exporters_redis_version
+  }}.linux-{{
+  exporters_arch_map[ansible_architecture] | default('amd64')
+  }}.tar.gz
+
+exporters_node_url: >
+  https://github.com/prometheus/node_exporter/releases/download/{{
+  exporters_node_version
+  }}/node_exporter-{{
+  exporters_node_version | replace('v', '')
+  }}.linux-{{
+  exporters_arch_map[ansible_architecture] | default('amd64')
+  }}.tar.gz
+
+exporters_blackbox_url: >
+  https://github.com/prometheus/blackbox_exporter/releases/download/{{
+  exporters_blackbox_version
+  }}/blackbox_exporter-{{
+  exporters_blackbox_version | replace('v', '')
+  }}.linux-{{
+  exporters_arch_map[ansible_architecture] | default('amd64')
+  }}.tar.gz

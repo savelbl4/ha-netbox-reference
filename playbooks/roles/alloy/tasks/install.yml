@@ -1,0 +1,34 @@
+- name: Ensure required packages (unarchive, curl)
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+  loop: [curl, tar, unzip]
+
+- name: Определить архитектуру Alloy
+  ansible.builtin.set_fact:
+    alloy_arch: "{{ alloy_arch_map[ansible_architecture] }}"
+
+- name: Создать временный каталог
+  ansible.builtin.file:
+    path: /tmp/alloy
+    state: directory
+    mode: '0755'
+
+- name: Скачать Alloy .zip
+  ansible.builtin.get_url:
+    url: "https://github.com/grafana/alloy/releases/download/v{{ alloy_version }}/alloy-linux-{{ alloy_arch }}.zip"
+    dest: "/tmp/alloy/alloy.zip"
+    mode: '0644'
+
+- name: Распаковать Alloy .zip
+  ansible.builtin.unarchive:
+    src: "/tmp/alloy/alloy.zip"
+    dest: "/tmp/alloy/"
+    remote_src: true
+
+- name: Установить бинарник alloy в /usr/local/bin
+  ansible.builtin.copy:
+    src: "/tmp/alloy/alloy-linux-{{ alloy_arch }}"
+    dest: "{{ alloy_binary_path }}"
+    mode: '0755'
+    remote_src: true

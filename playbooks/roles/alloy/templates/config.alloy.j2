@@ -1,0 +1,175 @@
+logging {
+  level = "debug"
+}
+
+prometheus.exporter.unix "default" {
+  include_exporter_metrics = true
+  disable_collectors       = ["mdadm"]
+}
+
+prometheus.scrape "angie" {
+  targets = [
+    {
+      job          = "angie{{ group_names[0] | lower }}",
+      __scheme__   = "http",
+      __address__  = "127.0.0.1:80",
+      instance = "{{ inventory_hostname }}",
+    },
+  ]
+  metrics_path = "/p8s"
+  scrape_interval = "10s"
+  forward_to = [
+    prometheus.remote_write.lab_for_test.receiver,
+  ]
+}
+
+prometheus.scrape "netbox" {
+  targets = [
+    {
+      job          = "netbox{{ group_names[0] | lower }}",
+      __scheme__   = "http",
+      __address__  = "127.0.0.1:80",
+      instance = "{{ inventory_hostname }}",
+    },
+  ]
+  metrics_path = "/metrics"
+  scrape_interval = "10s"
+  forward_to = [
+    prometheus.remote_write.lab_for_test.receiver,
+  ]
+}
+
+prometheus.scrape "etcd" {
+  targets = [
+    {
+      job          = "etcd{{ group_names[0] | lower }}",
+      __scheme__   = "http",
+      __address__  = "127.0.0.1:{{ etcd_client_port }}",
+      instance = "{{ inventory_hostname }}",
+    },
+  ]
+  metrics_path = "/metrics"
+  scrape_interval = "10s"
+  forward_to = [
+    prometheus.remote_write.lab_for_test.receiver,
+  ]
+}
+
+prometheus.scrape "patroni" {
+  targets = [
+    {
+      job          = "patroni{{ group_names[0] | lower }}",
+      __scheme__   = "http",
+      __address__  = "127.0.0.1:{{ patroni_rest_port }}",
+      instance = "{{ inventory_hostname }}",
+{#      instance = sys.env("HOSTNAME"),#}
+    },
+  ]
+  metrics_path = "/metrics"
+  scrape_interval = "10s"
+  forward_to = [
+    prometheus.remote_write.lab_for_test.receiver,
+  ]
+}
+
+prometheus.scrape "pgbouncer" {
+  targets = [
+    {
+      job          = "pgbouncer{{ group_names[0] | lower }}",
+      __scheme__   = "http",
+      __address__  = "127.0.0.1{{ exporters_pgbouncer_listen }}",
+      instance = "{{ inventory_hostname }}",
+    },
+  ]
+  metrics_path = "/metrics"
+  scrape_interval = "10s"
+  forward_to = [
+    prometheus.remote_write.lab_for_test.receiver,
+  ]
+}
+
+prometheus.scrape "postgres" {
+  targets = [
+    {
+      job          = "postgres{{ group_names[0] | lower }}",
+      __scheme__   = "http",
+      __address__  = "127.0.0.1{{ exporters_postgres_listen }}",
+      instance = "{{ inventory_hostname }}",
+    },
+  ]
+  metrics_path = "/metrics"
+  scrape_interval = "10s"
+  forward_to = [
+    prometheus.remote_write.lab_for_test.receiver,
+  ]
+}
+
+prometheus.scrape "redis" {
+  targets = [
+    {
+      job          = "redis{{ group_names[0] | lower }}",
+      __scheme__   = "http",
+      __address__  = "127.0.0.1{{ exporters_redis_listen }}",
+      instance = "{{ inventory_hostname }}",
+    },
+  ]
+  metrics_path = "/metrics"
+  scrape_interval = "10s"
+  forward_to = [
+    prometheus.remote_write.lab_for_test.receiver,
+  ]
+}
+
+prometheus.scrape "haproxy" {
+  targets = [
+    {
+      job          = "haproxy{{ group_names[0] | lower }}",
+      __scheme__   = "http",
+      __address__  = "127.0.0.1{{ exporters_haproxy_listen }}",
+      instance = "{{ inventory_hostname }}",
+    },
+  ]
+  metrics_path = "/metrics"
+  scrape_interval = "10s"
+  forward_to = [
+    prometheus.remote_write.lab_for_test.receiver,
+  ]
+}
+
+prometheus.scrape "node" {
+  targets = [
+    {
+      job          = "node{{ group_names[0] | lower }}",
+      __scheme__   = "http",
+      __address__  = "127.0.0.1{{ exporters_node_listen }}",
+      instance = "{{ inventory_hostname }}",
+    },
+  ]
+  metrics_path = "/metrics"
+  scrape_interval = "10s"
+  forward_to = [
+    prometheus.remote_write.lab_for_test.receiver,
+  ]
+}
+
+prometheus.scrape "blackbox" {
+  targets = [
+    {
+      job          = "blackbox{{ group_names[0] | lower }}",
+      __scheme__   = "http",
+      __address__  = "127.0.0.1{{ exporters_blackbox_listen }}",
+      instance = "{{ inventory_hostname }}",
+    },
+  ]
+  metrics_path = "/metrics"
+  scrape_interval = "10s"
+  forward_to = [
+    prometheus.remote_write.lab_for_test.receiver,
+  ]
+}
+
+prometheus.remote_write "lab_for_test" {
+  endpoint {
+    url = "http://{{ alloy_remote_host }}:9090/api/v1/write"
+  }
+}

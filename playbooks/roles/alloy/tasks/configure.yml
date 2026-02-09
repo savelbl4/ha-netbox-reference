@@ -1,0 +1,72 @@
+- name: Убедиться, что alloy бинарь доступен
+  ansible.builtin.file:
+    path: "{{ alloy_binary_path }}"
+    mode: '0755'
+    state: file
+
+- name: Создать конфигурационный каталог
+  ansible.builtin.file:
+    path: "/etc/alloy"
+    state: directory
+    mode: '0755'
+
+- name: Проверить, существует ли пользователь alloy
+  ansible.builtin.getent:
+    database: passwd
+    key: alloy
+  register: alloy_getent
+  failed_when: false
+  changed_when: false
+
+- name: Установить флаг существования пользователя
+  ansible.builtin.set_fact:
+    alloy_user_exists: true
+  when: alloy_getent.entries is defined and alloy_getent.entries | length > 0
+
+- name: Создать пользователя alloy
+  ansible.builtin.user:
+    name: alloy
+    system: true           # системный пользователь (без shell по умолчанию)
+    shell: "/usr/sbin/nologin"
+    home: "{{ alloy_work_path }}"
+    create_home: true
+  when: not alloy_user_exists | default(false)
+
+- name: Назначить alloy владельцем /etc/alloy и /var/lib/alloy
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: alloy
+    group: alloy
+    recurse: true
+  loop:
+    - "/etc/alloy"
+    - "/var/lib/alloy"
+
+- name: Скопировать шаблон конфига
+  ansible.builtin.template:
+    src: config.alloy.j2
+    dest: "/etc/alloy/config.alloy"
+    mode: '0644'
+  notify: Перезапустить Alloy
+
+- name: Установить /etc/default/alloy
+  ansible.builtin.template:
+    src: alloy.default.j2
+    dest: "/etc/default/alloy"
+    mode: '0644'
+  notify: Перезапустить Alloy
+
+- name: Установить systemd unit для alloy
+  ansible.builtin.template:
+    src: alloy.service.j2
+    dest: "/etc/systemd/system/alloy.service"
+    mode: '0644'
+  notify: Перезапустить Alloy
+
+- name: Включить и запустить Alloy
+  ansible.builtin.systemd:
+    name: alloy
+    enabled: true
+    state: started
+    daemon_reload: true
