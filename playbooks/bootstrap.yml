@@ -17,9 +17,9 @@
     - role: patroni
       tags: [patroni]
     - role: keepalived
-      tags: [patroni, keepalived]
+      tags: [redis, patroni, keepalived]
     - role: haproxy
-      tags: [patroni, haproxy]
+      tags: [redis, patroni, haproxy]
     - role: pgbouncer
       tags: [patroni, pgbouncer]
     - role: angie
