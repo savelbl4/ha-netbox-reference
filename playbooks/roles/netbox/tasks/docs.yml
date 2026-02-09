@@ -1,0 +1,23 @@
+- name: Build NetBox documentation
+  ansible.builtin.command:
+    cmd: "{{ netbox_venv }}/bin/mkdocs build -f mkdocs.yml"
+    chdir: "{{ netbox_base_dir }}"
+  register: netbox_mkdocs_build
+  changed_when: "'Documentation built' in netbox_mkdocs_build.stdout or netbox_mkdocs_build.rc == 0"
+
+- name: Ensure static exists
+  ansible.builtin.file:
+    path: "{{ netbox_base_dir }}/netbox/static"
+    state: directory
+    owner: "{{ netbox_user }}"
+    group: "{{ netbox_group }}"
+    mode: '0755'
+
+- name: Ensure static/docs symlink points to project-static/docs
+  ansible.builtin.file:
+    path: "{{ netbox_base_dir }}/netbox/static/docs"
+    state: link
+    src: "{{ netbox_base_dir }}/netbox/project-static/docs"
+    owner: "{{ netbox_user }}"
+    group: "{{ netbox_group }}"
+  force: true

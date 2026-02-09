@@ -107,6 +107,9 @@
     chdir: "{{ netbox_base_dir }}"
   changed_when: false
 
+- name: Build NetBox documentation
+  ansible.builtin.include_tasks: docs.yml
+
 - name: Create superuser (debug)
   ansible.builtin.shell: |
     set -euo pipefail
