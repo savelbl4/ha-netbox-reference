@@ -51,6 +51,8 @@
     - postgres-exporter.service
     - pgbouncer-exporter.service
     - redis-exporter.service
+    - node-exporter.service
+    - blackbox-exporter.service
 
 ###########################################################################
 # HAProxy Exporter
@@ -137,7 +139,7 @@
           - state:            { usage: "LABEL" }
           - sync_state:       { usage: "LABEL" }
           - lag_bytes:
-              usage: "GAUGE"   # без пробелов; тут просто подчёркиваю, что это GAUGE :)
+              usage: "GAUGE"
               description: "Replication lag to standby replay_lsn in bytes (only on primary)."
       pg_replication_apply:
         query: |
@@ -188,7 +190,7 @@
       User=prometheus
       Group=prometheus
       Environment="DATA_SOURCE_NAME={{ exporters_postgres_dsn }}"
-      # extended queries: lag bytes (primary + standby)
+      
       Environment="PG_EXPORTER_EXTEND_QUERY_PATH=/etc/postgres_exporter/queries-repl.yml"
       ExecStart={{ exporters_bin_dir }}/postgres_exporter --web.listen-address={{ exporters_postgres_listen }}
       Restart=always

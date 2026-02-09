@@ -23,7 +23,7 @@ exporters_blackbox_listen: ":9115"
 # Настройки сервисов
 exporters_haproxy_admin_socket: "/run/haproxy/admin.sock"
 exporters_pgbouncer_address: "{{ pgb_listen_addr }}:{{ pgb_listen_port }}"
-exporters_pgbouncer_dsn: >
+exporters_pgbouncer_dsn: >-
   postgresql://{{ pgb_stats_users }}:{{
   pgb_stats_pass | urlencode | replace('%', '%%')
   }}@{{ exporters_pgbouncer_address }}/pgbouncer?sslmode=disable
@@ -35,7 +35,7 @@ exporters_blackbox_config_file: /etc/blackbox_exporter/blackbox.yml
 exporters_postgres_user: "{{ pg_superuser }}"
 exporters_postgres_password: "{{ pg_superuser_password }}"
 exporters_postgres_db: "netbox"
-exporters_postgres_dsn: >
+exporters_postgres_dsn: >-
   postgresql://{{ exporters_postgres_user }}:{{
   exporters_postgres_password | urlencode | replace('%', '%%')
   }}@{{ hostvars[inventory_hostname].node_ip }}:{{ postgres_port }}/{{ exporters_postgres_db }}?sslmode=disable

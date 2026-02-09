@@ -23,6 +23,8 @@
       },
       "fieldConfig": {
         "defaults": {
+          "min": 0,
+          "max": 100,
           "color": {
             "mode": "palette-classic"
           },
@@ -36,7 +38,7 @@
             "barAlignment": 0,
             "barWidthFactor": 0.6,
             "drawStyle": "line",
-            "fillOpacity": 20,
+            "fillOpacity": 3,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -48,12 +50,12 @@
             "lineStyle": {
               "fill": "solid"
             },
-            "lineWidth": 1,
+            "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "auto",
+            "showPoints": "never",
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -63,7 +65,7 @@
               "mode": "dashed"
             }
           },
-          "decimals": 1,
+          "decimals": 0,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -110,7 +112,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "100 * \nsum (netdata_system_ram_MiB_average{job=~\"$job_regex\",instance=~\"$instance\",dimension=\"used\"}) by(instance)\n/\nsum (netdata_system_ram_MiB_average{job=~\"$job_regex\",instance=~\"$instance\"}) by(instance)",
+          "expr": "100 *\n(\n  node_memory_MemTotal_bytes{job=~\"$job_regex\",instance=~\"$instance\"}\n- node_memory_MemAvailable_bytes{job=~\"$job_regex\",instance=~\"$instance\"}\n)\n/\nnode_memory_MemTotal_bytes{job=~\"$job_regex\",instance=~\"$instance\"}",
           "legendFormat": "{{instance}}",
           "range": true,
           "refId": "A"
@@ -126,6 +128,8 @@
       },
       "fieldConfig": {
         "defaults": {
+          "min": 0,
+          "max": 100,
           "color": {
             "mode": "palette-classic"
           },
@@ -139,7 +143,7 @@
             "barAlignment": 0,
             "barWidthFactor": 0.6,
             "drawStyle": "line",
-            "fillOpacity": 0,
+            "fillOpacity": 3,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -148,12 +152,12 @@
             },
             "insertNulls": false,
             "lineInterpolation": "linear",
-            "lineWidth": 1,
+            "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "auto",
+            "showPoints": "never",
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -163,7 +167,7 @@
               "mode": "dashed"
             }
           },
-          "decimals": 1,
+          "decimals": 0,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -210,7 +214,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "100 * (\n  sum(\n      netdata_disk_space_GiB_average{\n      job=~\"$job_regex\",\n      instance=~\"$instance\",\n      mount_point=\"/\",\n      dimension=~\"used|reserved for root\"}) by (instance)/ \n  sum(netdata_disk_space_GiB_average{\n      job=~\"$job_regex\",\n      instance=~\"$instance\",\n      mount_point=\"/\",\n      dimension=~\"avail|used|reserved for root\"}) by (instance)\n)\n",
+          "expr": "100 *\n(\n  node_filesystem_size_bytes{job=~\"$job_regex\",instance=~\"$instance\",mountpoint=\"/\",fstype!~\"tmpfs|devtmpfs|overlay|squashfs|nsfs|ramfs\"}\n- node_filesystem_free_bytes{job=~\"$job_regex\",instance=~\"$instance\",mountpoint=\"/\",fstype!~\"tmpfs|devtmpfs|overlay|squashfs|nsfs|ramfs\"}\n)\n/\nnode_filesystem_size_bytes{job=~\"$job_regex\",instance=~\"$instance\",mountpoint=\"/\",fstype!~\"tmpfs|devtmpfs|overlay|squashfs|nsfs|ramfs\"}\n",
           "legendFormat": "{{instance}}",
           "range": true,
           "refId": "A"
@@ -226,6 +230,8 @@
       },
       "fieldConfig": {
         "defaults": {
+          "min": 0,
+          "max": 100,
           "color": {
             "mode": "palette-classic"
           },
@@ -239,7 +245,7 @@
             "barAlignment": 0,
             "barWidthFactor": 0.6,
             "drawStyle": "line",
-            "fillOpacity": 0,
+            "fillOpacity": 3,
             "gradientMode": "none",
             "hideFrom": {
               "legend": false,
@@ -253,7 +259,7 @@
             "scaleDistribution": {
               "type": "linear"
             },
-            "showPoints": "auto",
+            "showPoints": "never",
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -263,7 +269,7 @@
               "mode": "dashed"
             }
           },
-          "decimals": 1,
+          "decimals": 0,
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -310,7 +316,7 @@
       "targets": [
         {
           "editorMode": "code",
-          "expr": "sum(\n  netdata_system_cpu_percentage_average{\n    job=~\"$job_regex\",\n    instance=~\"$instance\",\n    dimension!=\"idle\"\n  }\n) by (instance)\n",
+          "expr": "100 *\n(\n1 -\navg by (instance) (\nrate(node_cpu_seconds_total{\njob=~\"$job_regex\",\ninstance=~\"$instance\",\nmode=\"idle\"\n}[1m])\n)\n)\n",
           "legendFormat": "{{instance}}",
           "range": true,
           "refId": "A"
