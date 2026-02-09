@@ -51,6 +51,7 @@
       changed_when: false
       tags:
         - remove
+        - stop
 
     - name: Remove existing VM folders
       ansible.builtin.file:
