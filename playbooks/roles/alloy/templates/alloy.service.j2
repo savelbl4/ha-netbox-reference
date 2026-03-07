@@ -1,8 +1,8 @@
 [Unit]
 Description= Vendor-agnostic OpenTelemetry Collector distribution with programmable pipelines
 Documentation=https://grafana.com/docs/alloy
-Wants=network-online.target
-After=network-online.target
+Wants=network-online.target systemd-time-wait-sync.service
+After=network-online.target systemd-time-wait-sync.service time-sync.target
 
 [Service]
 Restart=always
@@ -11,6 +11,7 @@ Environment=HOSTNAME=%H
 Environment=ALLOY_DEPLOY_MODE=deb
 EnvironmentFile=/etc/default/alloy
 WorkingDirectory={{ alloy_work_path }}
+ExecStartPre=/usr/local/bin/wait-for-time-sync.sh
 ExecStart={{ alloy_binary_path }} run $CUSTOM_ARGS --storage.path={{ alloy_data_path }} $CONFIG_FILE
 ExecReload=/usr/bin/env kill -HUP $MAINPID
 TimeoutStopSec=20s

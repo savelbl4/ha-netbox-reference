@@ -1,0 +1,28 @@
+- name: Скачать Prometheus
+  ansible.builtin.get_url:
+    url: "{{ prometheus_url }}"
+    dest: "/tmp/prometheus.tar.gz"
+    mode: '0644'
+
+- name: Распаковать Prometheus
+  ansible.builtin.unarchive:
+    src: "/tmp/prometheus.tar.gz"
+    dest: "/tmp/"
+    remote_src: true
+
+- name: Скопировать бинарники
+  ansible.builtin.copy:
+    src: >-
+      /tmp/prometheus-{{
+      prometheus_version | replace('v', '')
+      }}.linux-{{
+      prometheus_arch_map[ansible_architecture] | default('amd64')
+      }}/{{
+      item
+      }}
+    dest: "{{ prometheus_install_dir }}/{{ item }}"
+    mode: '0755'
+    remote_src: true
+  loop:
+    - "prometheus"
+    - "promtool"

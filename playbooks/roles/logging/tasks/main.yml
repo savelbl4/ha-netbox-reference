@@ -19,26 +19,35 @@
   ansible.builtin.command: timedatectl set-ntp true
   changed_when: false
 
-- name: Скопировать скрипт
+- name: Copy logging script
   ansible.builtin.copy:
     src: files/logging.sh
     dest: "/etc/profile.d/logging.sh"
     mode: '0755'
 
-- name: Скопировать motd
+- name: Copy wait-for-time-sync.sh
   ansible.builtin.copy:
-    src: files/motd.sh
-    dest: "/etc/update-motd.d/10-netbox-status"
+    src: files/wait-for-time-sync.sh
+    dest: "/usr/local/bin/wait-for-time-sync.sh"
     mode: '0755'
 
-- name: Delete motd
-  ansible.builtin.file:
-    path: "/etc/motd"
-    state: absent
+- name: Copy motd
+  when: "'netbox' in group_names"
+  block:
+    - name: Скопировать motd
+      ansible.builtin.copy:
+        src: files/motd.sh
+        dest: "/etc/update-motd.d/10-netbox-status"
+        mode: '0755'
 
-- name: Make link motd
-  ansible.builtin.command:
-    cmd: "ln -s /var/run/motd /etc/motd"
+    - name: Delete motd
+      ansible.builtin.file:
+        path: "/etc/motd"
+        state: absent
+
+    - name: Make link motd
+      ansible.builtin.command:
+        cmd: "ln -s /var/run/motd /etc/motd"
 
 - name: Check the availability of the host (ICMP)
   ansible.builtin.command: ping -c 1 -W 1 {{ logging_remote_host }}

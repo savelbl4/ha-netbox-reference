@@ -1,0 +1,17 @@
+prometheus_version: "v3.9.1"
+prometheus_install_dir: "/usr/local/bin"
+prometheus_binary_path: "/usr/local/bin/prometheus"
+prometheus_data_path: "/var/lib/prometheus"
+prometheus_work_path: "/etc/prometheus"
+prometheus_arch_map:
+  x86_64: amd64
+  aarch64: arm64
+
+prometheus_url: >
+  https://github.com/prometheus/prometheus/releases/download/{{
+  prometheus_version
+  }}/prometheus-{{
+  prometheus_version | replace('v', '')
+  }}.linux-{{
+  prometheus_arch_map[ansible_architecture] | default('amd64')
+  }}.tar.gz
