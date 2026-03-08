@@ -343,19 +343,19 @@ backend pgbouncer_nodes
     server netbox-node-2 172.16.113.202:6432 check
     server netbox-node-3 172.16.113.203:6432 check
 
-    acl dz_demo_srv_13_up  srv_is_up(pgbouncer_nodes/netbox-node-1)
-    acl dz_demo_srv_14_up  srv_is_up(pgbouncer_nodes/netbox-node-2)
-    acl dz_demo_srv_15_up  srv_is_up(pgbouncer_nodes/netbox-node-3)
+    acl netbox_node_1_up  srv_is_up(pgbouncer_nodes/netbox-node-1)
+    acl netbox_node_2_up  srv_is_up(pgbouncer_nodes/netbox-node-2)
+    acl netbox_node_3_up  srv_is_up(pgbouncer_nodes/netbox-node-3)
 
-    acl from_dz_demo_srv_13 src 172.16.113.201
-    acl from_dz_demo_srv_14 src 172.16.113.202
-    acl from_dz_demo_srv_15 src 172.16.113.203
+    acl from_netbox_node_1 src 172.16.113.201
+    acl from_netbox_node_2 src 172.16.113.202
+    acl from_netbox_node_3 src 172.16.113.203
 
-    use-server netbox-node-1 if dz_demo_srv_13_up
+    use-server netbox-node-1 if netbox_node_1_up
 
-    use-server netbox-node-1 if from_dz_demo_srv_13 dz_demo_srv_13_up
-    use-server netbox-node-2 if from_dz_demo_srv_14 dz_demo_srv_14_up
-    use-server netbox-node-3 if from_dz_demo_srv_15 dz_demo_srv_15_up
+    use-server netbox-node-1 if from_netbox_node_1 netbox_node_1_up
+    use-server netbox-node-2 if from_netbox_node_2 netbox_node_2_up
+    use-server netbox-node-3 if from_netbox_node_3 netbox_node_3_up
 ```
 
 ### Контекст и финальная конфигурация
