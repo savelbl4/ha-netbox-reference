@@ -32,7 +32,7 @@ out_ip: "{{ (node_ip.split('.')[:-1] | join('.')) ~ '.205' }}"
 # внешняя маска
 out_prefix: "24"
 # сертификат для Angie положите сюда -> playbooks/roles/angie/files/
-name_of_certs: "199"
+name_of_certs: "localhost"
 # нужно ли поднять VIP для внешних клиентов
 setup_nb_vip: true
 
@@ -106,7 +106,7 @@ etcd_migrate_old_data: false
 ### patroni
 
 # Cluster-wide vars
-pg_version: 18
+pg_version: 17
 pg_port: 5432
 
 # etcd v3 endpoints (client port 22379). Scheme is optional; template strips it.
