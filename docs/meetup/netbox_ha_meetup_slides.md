@@ -165,7 +165,7 @@ Server down
 
 # Сбой PostgreSQL Leader
 
-![bg 85%](netbox-postgres-failover2.svg)
+![bg 85%](netbox-postgres-failover.svg)
 
 <style scoped>
 section h1 {
