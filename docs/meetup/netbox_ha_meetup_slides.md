@@ -12,6 +12,7 @@ author: Сергей Савелов
 классическая HA архитектура**
 
 Сергей Савелов
+LiveOps / Infrastructure
 
 ---
 
@@ -36,15 +37,15 @@ NetBox часто становится:
 
 Обычно всё выглядит так:
 
-NetBox  
-PostgreSQL  
-Redis  
+NetBox
+PostgreSQL
+Redis
 
 Часто это **одна VM или сервер**.
 Это означает один SPOF.
 
 ![bg fit](1)
-![bg 90%](netbox_default_architecture.svg)
+![bg 90%](netbox_ha_default_architecture.svg)
 
 ---
 
@@ -66,9 +67,14 @@ Redis
 
 # Требование бизнеса
 
-Формулировка на простом уровне:
+NetBox — control plane инфраструктуры
 
-> NetBox не должен переставать работать, если падает один сервер.
+Если он недоступен:
+- ломается автоматизация
+- CI/CD теряет доступ к данным
+
+> Основная цель:
+> Переживать типовые отказы без остановки сервиса
 
 ---
 
@@ -121,59 +127,132 @@ section h1 {
 
 # Основные компоненты
 
-PostgreSQL  
-→ Patroni
+**PostgreSQL**
+_→ Patroni_
 
-Redis  
-→ replication / sentinel
+**Redis**
+_→ replication / sentinel_
 
-Балансировка  
-→ HAProxy + Keepalived
+**Балансировка**
+_→ HAProxy + Keepalived_
 
-NetBox  
-→ несколько инстансов
+**NetBox**
+_→ несколько инстансов_
 
-Connection pooling
-→ PgBouncer
+**Connection pooling**
+_→ PgBouncer_
 
 ---
 
 # Что происходит при падении
 
-NetBox node down
-→ HAProxy переключает трафик
+**NetBox node down**
+_→ HAProxy переключает трафик_
 
-PostgreSQL leader down
-→ Patroni выбирает нового
+**PostgreSQL leader down**
+_→ Patroni выбирает нового_
 
-Server down
-→ VIP переезжает
-
----
-
-# Проверка отказоустойчивости
-
-Пример сценария:
-
-1. отключаем одну ноду PostgreSQL
-2. Patroni выбирает нового лидера
-3. NetBox продолжает работать
-
-Пользователь почти не замечает переключение.
+**Server down**
+_→ VIP переезжает_
 
 ---
 
-# Сбой PostgreSQL Leader
+# Какие отказы мы тестировали
 
-![bg 85%](netbox-postgres-failover.svg)
+PostgreSQL
+Redis
+NetBox
+Инфраструктура
+
+---
+
+# PostgreSQL
+
+<div class="wrap">
+
+<div class="text">
+
+Проверяли поведение системы в реальных сценариях:
+
+1. отключаем одну ноду PostgreSQL  
+2. Patroni выбирает нового лидера  
+3. NetBox продолжает работать  
+
+> Пользователь почти не замечает переключение.
+
+</div>
+
+<div class="image">
+
+![width:100%](netbox-postgres-failover2.svg)
+
+</div>
+
+</div>
 
 <style scoped>
-section h1 {
-  position: absolute !important;
-  top: 20px !important;
+.wrap {
+  position: relative;
+  height: 100%;
+}
+
+/* текст поверх */
+.text {
+  position: absolute;
+  left: 0;
+  top: 35%;
+  transform: translateY(-50%);
+  width: 50%;
+  padding: 20px;
+  border-radius: 10px;
+  z-index: 10;
+}
+
+/* картинка */
+.image {
+  position: absolute;
+  right: -5%;
+  top: -10%;
+  width: 60%;
+  height: 100%;
 }
 </style>
 
+---
+
+# NetBox
+
+- остановка одного инстанса
+- перезапуск сервиса
+- отключение VM
+
+→ HAProxy переключает трафик
+→ пользователи не замечают
+
+---
+
+# Redis
+
+- падение master
+- перезапуск ноды
+
+→ Sentinel выбирает нового master
+→ очередь и кэш продолжают работать
+
+---
+
+# Инфраструктура
+
+- перезагрузка сервера
+- недоступность одной VM
+
+→ сервис остаётся доступным через VIP
+
+---
+
+## Итог
+
+> В типовых сценариях отказа сервис остаётся доступным
 ---
 
 # Что важно в эксплуатации
