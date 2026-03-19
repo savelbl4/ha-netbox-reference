@@ -13,7 +13,6 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 31,
   "links": [],
   "panels": [
     {
@@ -23,8 +22,6 @@
       },
       "fieldConfig": {
         "defaults": {
-          "min": 0,
-          "max": 100,
           "color": {
             "mode": "palette-classic"
           },
@@ -56,6 +53,7 @@
               "type": "linear"
             },
             "showPoints": "never",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -67,6 +65,8 @@
           },
           "decimals": 0,
           "mappings": [],
+          "max": 100,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -89,8 +89,8 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
-        "w": 8,
+        "h": 8,
+        "w": 4,
         "x": 0,
         "y": 0
       },
@@ -108,7 +108,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "editorMode": "code",
@@ -128,8 +128,6 @@
       },
       "fieldConfig": {
         "defaults": {
-          "min": 0,
-          "max": 100,
           "color": {
             "mode": "palette-classic"
           },
@@ -158,6 +156,7 @@
               "type": "linear"
             },
             "showPoints": "never",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -169,6 +168,8 @@
           },
           "decimals": 0,
           "mappings": [],
+          "max": 100,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -191,9 +192,9 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
-        "w": 8,
-        "x": 8,
+        "h": 8,
+        "w": 4,
+        "x": 4,
         "y": 0
       },
       "id": 16,
@@ -210,7 +211,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "editorMode": "code",
@@ -230,8 +231,6 @@
       },
       "fieldConfig": {
         "defaults": {
-          "min": 0,
-          "max": 100,
           "color": {
             "mode": "palette-classic"
           },
@@ -260,6 +259,7 @@
               "type": "linear"
             },
             "showPoints": "never",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -271,6 +271,8 @@
           },
           "decimals": 0,
           "mappings": [],
+          "max": 100,
+          "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -293,9 +295,9 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
-        "w": 8,
-        "x": 16,
+        "h": 8,
+        "w": 4,
+        "x": 8,
         "y": 0
       },
       "id": 15,
@@ -312,7 +314,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "editorMode": "code",
@@ -351,14 +353,14 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 8,
-        "x": 0,
-        "y": 6
+        "w": 4,
+        "x": 12,
+        "y": 0
       },
-      "id": 1,
+      "id": 18,
       "options": {
         "colorMode": "value",
-        "graphMode": "none",
+        "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "auto",
         "percentChangeColorMode": "standard",
@@ -373,15 +375,16 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
-          "expr": "min(etcd_server_has_leader{job=~\"$job_regex\"})",
-          "legendFormat": "has_leader",
+          "editorMode": "code",
+          "expr": "sum(angie_connections_active{job=~\"$job_regex\",instance=~\"$instance\"})",
+          "range": true,
           "refId": "A"
         }
       ],
-      "title": "etcd: есть лидер? (1=да)",
+      "title": "Angie up (инстансов)",
       "type": "stat"
     },
     {
@@ -410,9 +413,9 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 8,
-        "x": 8,
-        "y": 6
+        "w": 4,
+        "x": 16,
+        "y": 0
       },
       "id": 2,
       "options": {
@@ -432,7 +435,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "expr": "sum(patroni_primary{job=~\"$job_regex\"})",
@@ -441,65 +444,6 @@
         }
       ],
       "title": "Patroni: число primaries (ожидаем 1)",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "$DS_PROMETHEUS"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": 0
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 8,
-        "x": 16,
-        "y": 6
-      },
-      "id": 3,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "12.1.1",
-      "targets": [
-        {
-          "expr": "sum(pg_up{job=~\"$job_regex\",instance=~\"$instance\"})",
-          "legendFormat": "pg_up",
-          "refId": "A"
-        }
-      ],
-      "title": "Postgres exporter up (инстансов)",
       "type": "stat"
     },
     {
@@ -536,9 +480,9 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 12,
-        "x": 0,
-        "y": 10
+        "w": 4,
+        "x": 20,
+        "y": 0
       },
       "id": 4,
       "options": {
@@ -558,7 +502,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "expr": "100 * sum(pg_stat_activity_count{job=~\"$job_regex\",instance=~\"$instance\",datname!~\"^template.*\"}) / sum(pg_settings_max_connections{job=~\"$job_regex\",instance=~\"$instance\"})",
@@ -603,9 +547,9 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 12,
+        "w": 4,
         "x": 12,
-        "y": 10
+        "y": 4
       },
       "id": 5,
       "options": {
@@ -625,7 +569,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "editorMode": "code",
@@ -664,11 +608,11 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 0,
-        "y": 14
+        "w": 4,
+        "x": 16,
+        "y": 4
       },
-      "id": 6,
+      "id": 11,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -686,14 +630,14 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
-          "expr": "sum(redis_up{job=~\"$job_regex\",instance=~\"$instance\"})",
+          "expr": "sum(patroni_postgres_running{job=~\"$job_regex\",instance=~\"$instance\"})",
           "refId": "A"
         }
       ],
-      "title": "Redis up (инстансов)",
+      "title": "Patroni: postgres_running (инстансов)",
       "type": "stat"
     },
     {
@@ -722,11 +666,11 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 6,
-        "y": 14
+        "w": 4,
+        "x": 20,
+        "y": 4
       },
-      "id": 7,
+      "id": 3,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -744,14 +688,15 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
-          "expr": "count(redis_instance_info{role=\"master\",job=~\"$job_regex\",instance=~\"$instance\"})",
+          "expr": "sum(pg_up{job=~\"$job_regex\",instance=~\"$instance\"})",
+          "legendFormat": "pg_up",
           "refId": "A"
         }
       ],
-      "title": "Redis masters (ожидаем 1)",
+      "title": "Postgres exporter up (инстансов)",
       "type": "stat"
     },
     {
@@ -788,6 +733,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -815,10 +761,102 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 12,
-        "x": 12,
-        "y": 14
+        "h": 8,
+        "w": 6,
+        "x": 0,
+        "y": 8
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "expr": "sum by(frontend) (haproxy_frontend_current_sessions{job=~\"$job_regex\",instance=~\"$instance\"})",
+          "legendFormat": "{{frontend}}",
+          "refId": "A"
+        }
+      ],
+      "title": "HAProxy frontend current sessions",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$DS_PROMETHEUS"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "barWidthFactor": 0.6,
+            "drawStyle": "line",
+            "fillOpacity": 0,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "auto",
+            "showValues": false,
+            "spanNulls": false,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 5,
+        "x": 6,
+        "y": 8
       },
       "id": 8,
       "options": {
@@ -834,7 +872,7 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "expr": "sum by(instance) (redis_connected_clients{job=~\"$job_regex\",instance=~\"$instance\"})",
@@ -879,6 +917,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -901,17 +940,18 @@
                 "value": 80
               }
             ]
-          }
+          },
+          "unit": "bytes"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 4,
-        "w": 12,
-        "x": 0,
-        "y": 18
+        "h": 8,
+        "w": 5,
+        "x": 11,
+        "y": 8
       },
-      "id": 9,
+      "id": 12,
       "options": {
         "legend": {
           "calcs": [],
@@ -925,15 +965,17 @@
           "sort": "none"
         }
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
-          "expr": "sum by(frontend) (haproxy_frontend_current_sessions{job=~\"$job_regex\",instance=~\"$instance\"})",
-          "legendFormat": "{{frontend}}",
+          "editorMode": "code",
+          "expr": "max by(instance) (\n  pg_replication_lag_bytes{job=~\"$job_regex\", instance=~\"$instance\"}\nor\n  pg_replication_apply_lag_bytes{job=~\"$job_regex\", instance=~\"$instance\"}\n)",
+          "legendFormat": "{{instance}}",
+          "range": true,
           "refId": "A"
         }
       ],
-      "title": "HAProxy frontend current sessions",
+      "title": "PG replication lag (bytes)",
       "type": "timeseries"
     },
     {
@@ -962,9 +1004,68 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 12,
-        "y": 18
+        "w": 4,
+        "x": 16,
+        "y": 8
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.4.0",
+      "targets": [
+        {
+          "expr": "min(etcd_server_has_leader{job=~\"$job_regex\"})",
+          "legendFormat": "has_leader",
+          "refId": "A"
+        }
+      ],
+      "title": "etcd: есть лидер? (1=да)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "$DS_PROMETHEUS"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": 0
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 8
       },
       "id": 10,
       "options": {
@@ -984,7 +1085,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
           "expr": "increase(etcd_server_leader_changes_seen_total{job=~\"$job_regex\"}[1h])",
@@ -1021,11 +1122,11 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 6,
-        "x": 18,
-        "y": 18
+        "w": 4,
+        "x": 16,
+        "y": 12
       },
-      "id": 11,
+      "id": 6,
       "options": {
         "colorMode": "value",
         "graphMode": "area",
@@ -1043,14 +1144,14 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
-          "expr": "sum(patroni_postgres_running{job=~\"$job_regex\",instance=~\"$instance\"})",
+          "expr": "sum(redis_up{job=~\"$job_regex\",instance=~\"$instance\"})",
           "refId": "A"
         }
       ],
-      "title": "Patroni: postgres_running (инстансов)",
+      "title": "Redis up (инстансов)",
       "type": "stat"
     },
     {
@@ -1060,42 +1161,6 @@
       },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
           "mappings": [],
           "thresholds": {
             "mode": "absolute",
@@ -1109,48 +1174,48 @@
                 "value": 80
               }
             ]
-          },
-          "unit": "bytes"
+          }
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
-        "w": 24,
-        "x": 0,
-        "y": 22
+        "h": 4,
+        "w": 4,
+        "x": 20,
+        "y": 12
       },
-      "id": 12,
+      "id": 7,
       "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
         },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "single",
-          "sort": "none"
-        }
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "12.1.1",
+      "pluginVersion": "12.4.0",
       "targets": [
         {
-          "editorMode": "code",
-          "expr": "max by(instance) (\n  pg_replication_lag_bytes{job=~\"$job_regex\", instance=~\"$instance\"}\nor\n  pg_replication_apply_lag_bytes{job=~\"$job_regex\", instance=~\"$instance\"}\n)",
-          "legendFormat": "{{instance}}",
-          "range": true,
+          "expr": "count(redis_instance_info{role=\"master\",job=~\"$job_regex\",instance=~\"$instance\"})",
           "refId": "A"
         }
       ],
-      "title": "PG replication lag (bytes)",
-      "type": "timeseries"
+      "title": "Redis masters (ожидаем 1)",
+      "type": "stat"
     }
   ],
   "preload": false,
   "refresh": "5s",
-  "schemaVersion": 41,
+  "schemaVersion": 42,
   "tags": [
     "netbox",
     "prod",
@@ -1161,7 +1226,7 @@
       {
         "current": {
           "text": "Prometheus",
-          "value": "PBFA97CFB590B2093"
+          "value": "cffb4s9xnl9tsb"
         },
         "label": "Prometheus",
         "name": "DS_PROMETHEUS",
@@ -1172,19 +1237,19 @@
       },
       {
         "current": {
-          "text": ".*_prod",
-          "value": ".*_prod"
+          "text": ".*",
+          "value": ".*"
         },
         "label": "job regex",
         "name": "job_regex",
         "options": [
           {
             "selected": true,
-            "text": ".*_prod",
-            "value": ".*_prod"
+            "text": ".*",
+            "value": ".*"
           }
         ],
-        "query": ".*_prod",
+        "query": ".*",
         "type": "textbox"
       },
       {
@@ -1203,6 +1268,7 @@
         "options": [],
         "query": "label_values(up{job=~\"$job_regex\"}, instance)",
         "refresh": 1,
+        "regexApplyTo": "value",
         "type": "query"
       }
     ]
@@ -1215,5 +1281,6 @@
   "timezone": "browser",
   "title": "NetBox Stack — Minimal Overview",
   "uid": "5219b637-5148-41e8-9703-3888d6ac00f3",
-  "version": 14
+  "version": 4,
+  "weekStart": ""
 }
