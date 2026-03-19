@@ -35,6 +35,10 @@ NetBox часто становится:
 
 # Типичная установка NetBox
 
+<div class="wrap">
+
+<div class="text">
+
 Обычно всё выглядит так:
 
 NetBox
@@ -44,8 +48,43 @@ Redis
 Часто это **одна VM или сервер**.
 Это означает один SPOF.
 
-![bg fit](1)
-![bg 90%](netbox_ha_default_architecture.svg)
+</div>
+
+<div class="image">
+
+![width:100%](01_netbox_default_architecture.svg)
+
+</div>
+
+</div>
+
+<style scoped>
+.wrap {
+  position: relative;
+  height: 100%;
+}
+
+/* текст поверх */
+.text {
+  position: absolute;
+  left: 0;
+  top: 25%;
+  transform: translateY(-50%);
+  width: 45%;
+  padding: 20px;
+  border-radius: 10px;
+  z-index: 10;
+}
+
+/* картинка */
+.image {
+  position: absolute;
+  right: -10%;
+  top: 5%;
+  width: 60%;
+  height: 150%;
+}
+</style>
 
 ---
 
@@ -61,7 +100,7 @@ Redis
 
 В этот момент **NetBox полностью недоступен**.
 
-> Если NetBox падает — часть инфраструктуры перестаёт работать.
+> часть инфраструктуры перестаёт работать.
 
 ---
 
@@ -73,8 +112,7 @@ NetBox — control plane инфраструктуры
 - ломается автоматизация
 - CI/CD теряет доступ к данным
 
-> Основная цель:
-> Переживать типовые отказы без остановки сервиса
+> NetBox должен переживать типовые отказы без остановки сервиса
 
 ---
 
@@ -114,7 +152,7 @@ NetBox состоит из:
 
 # Архитектура решения
 
-![bg 97%](netbox-ha-main-architecture.svg)
+![bg 97%](02_netbox-ha-main-architecture.svg)
 
 <style scoped>
 section h1 {
@@ -146,45 +184,36 @@ _→ PgBouncer_
 
 # Что происходит при падении
 
-**NetBox node down**
-_→ HAProxy переключает трафик_
+**NetBox**
+_Если падает активная нода NetBox — VIP просто переезжает._
 
-**PostgreSQL leader down**
-_→ Patroni выбирает нового_
+**PostgreSQL**
+_Если падает leader — Patroni выбирает нового, HAProxy начинает слать трафик туда._
 
-**Server down**
-_→ VIP переезжает_
+**Redis**
+_Redis переключается на master через health checks._
 
----
-
-# Какие отказы мы тестировали
-
-PostgreSQL
-Redis
-NetBox
-Инфраструктура
+**Нода целиком**
+_Если падает вся VM — VIP переезжает, сервис продолжает работать._
 
 ---
 
-# PostgreSQL
+# NetBox
 
 <div class="wrap">
 
 <div class="text">
 
-Проверяли поведение системы в реальных сценариях:
+1. На активной ноде падает Angie или NetBox
+1. Keepalived снижает приоритет
+1. VIP переезжает
 
-1. отключаем одну ноду PostgreSQL  
-2. Patroni выбирает нового лидера  
-3. NetBox продолжает работать  
-
-> Пользователь почти не замечает переключение.
 
 </div>
 
 <div class="image">
 
-![width:100%](netbox-postgres-failover2.svg)
+![width:100%](03_netbox-netbox-failover.svg)
 
 </div>
 
@@ -200,9 +229,59 @@ NetBox
 .text {
   position: absolute;
   left: 0;
-  top: 35%;
+  top: 25%;
   transform: translateY(-50%);
   width: 50%;
+  padding: 20px;
+  border-radius: 10px;
+  z-index: 10;
+}
+
+/* картинка */
+.image {
+  position: absolute;
+  right: -10%;
+  top: -10%;
+  width: 65%;
+  height: 100%;
+}
+</style>
+
+---
+
+# PostgreSQL
+
+<div class="wrap">
+
+<div class="text">
+
+1. отключаем одну ноду PostgreSQL
+1. Patroni выбирает нового лидера
+1. HAProxy начинает слать трафик туда
+
+</div>
+
+<div class="image">
+
+![width:100%](04_netbox-postgres-failover.svg)
+
+</div>
+
+</div>
+
+<style scoped>
+.wrap {
+  position: relative;
+  height: 100%;
+}
+
+/* текст поверх */
+.text {
+  position: absolute;
+  left: 0;
+  top: 25%;
+  transform: translateY(-50%);
+  width: 45%;
   padding: 20px;
   border-radius: 10px;
   z-index: 10;
@@ -220,56 +299,164 @@ NetBox
 
 ---
 
-# NetBox
-
-- остановка одного инстанса
-- перезапуск сервиса
-- отключение VM
-
-→ HAProxy переключает трафик
-→ пользователи не замечают
-
----
-
 # Redis
 
-- падение master
-- перезапуск ноды
+<div class="wrap">
 
-→ Sentinel выбирает нового master
-→ очередь и кэш продолжают работать
+<div class="text">
+
+1. Падает Redis master  
+1. Sentinel обнаруживает сбой  
+1. Выбирается новый master  
+1. HAProxy начинает слать трафик на него  
+
+</div>
+
+<div class="image">
+
+![width:100%](05_netbox-redis-failover.svg)
+
+</div>
+
+</div>
+
+<style scoped>
+.wrap {
+  position: relative;
+  height: 100%;
+}
+
+/* текст поверх */
+.text {
+  position: absolute;
+  left: 0;
+  top: 25%;
+  transform: translateY(-50%);
+  width: 45%;
+  padding: 20px;
+  border-radius: 10px;
+  z-index: 10;
+}
+
+/* картинка */
+.image {
+  position: absolute;
+  right: -5%;
+  top: -10%;
+  width: 60%;
+  height: 100%;
+}
+</style>
 
 ---
 
 # Инфраструктура
 
-- перезагрузка сервера
-- недоступность одной VM
+<div class="wrap">
 
-→ сервис остаётся доступным через VIP
+<div class="text">
 
----
+1. Падает целая VM / сервер  
+2. Keepalived теряет heartbeat  
+3. VIP переносится на другую ноду  
+4. Сервисы продолжают работать   
 
-## Итог
+</div>
 
-> В типовых сценариях отказа сервис остаётся доступным
+<div class="image">
+
+![width:100%](06_netbox-node-failover.svg)
+
+</div>
+
+</div>
+
+<style scoped>
+.wrap {
+  position: relative;
+  height: 100%;
+}
+
+/* текст поверх */
+.text {
+  position: absolute;
+  left: 0;
+  top: 25%;
+  transform: translateY(-50%);
+  width: 45%;
+  padding: 20px;
+  border-radius: 10px;
+  z-index: 10;
+}
+
+/* картинка */
+.image {
+  position: absolute;
+  right: -5%;
+  top: -10%;
+  width: 60%;
+  height: 100%;
+}
+</style>
+
 ---
 
 # Что важно в эксплуатации
+
+<div class="wrap">
+
+<div class="text">
 
 Нужно мониторить:
 
 - доступность NetBox
 - статус лидера PostgreSQL
 - состояние Redis
-- мониторинг
 - backup
 - процедуры восстановления
 
 Также важно иметь:
 
 - схему архитектуры
-- инструкции восстановления
+- инструкции восстановления 
+
+</div>
+
+<div class="image">
+
+![width:100%](grafana.png)
+
+</div>
+
+</div>
+
+<style scoped>
+.wrap {
+  position: relative;
+  height: 100%;
+}
+
+/* текст поверх */
+.text {
+  position: absolute;
+  left: 0;
+  top: 40%;
+  transform: translateY(-50%);
+  width: 45%;
+  padding: 20px;
+  border-radius: 10px;
+  z-index: 10;
+}
+
+/* картинка */
+.image {
+  position: absolute;
+  right: -5%;
+  top: -5%;
+  width: 70%;
+  height: 100%;
+}
+</style>
 
 ---
 
